@@ -347,7 +347,7 @@ class Table
 						}
 						else
 						{
-							$cellbody .= '<b>' . (!empty($col->fname[$colval_lower])) ? $col->fname[$colval_lower] : ucwords(preg_replace('/_/', ' ', $colval)) . '</b>';
+							$cellbody .= '<b>' . (!empty($col->fname[$colval_lower]) ? $col->fname[$colval_lower] : htmlspecialchars(ucwords(preg_replace('/_/', ' ', $colval)), ENT_QUOTES)) . '</b>';
 						}
 						break;
 
@@ -373,7 +373,14 @@ class Table
 
 						if ($col->embedlink == 'yes')
 							{
-								$colval = preg_replace(array('/%A%([^ %]+)%/','/%\/A%/'), array("<a href=\"$1\">", '</a>'), $colval);
+								$colval = preg_replace_callback('/%A%([^ %]+)%((?:(?!%A%).)*?)%\/A%/s', function ($match) {
+									$url = html_entity_decode($match[1], ENT_QUOTES, 'UTF-8');
+									$scheme = parse_url($url, PHP_URL_SCHEME);
+									if (preg_match('/[\x00-\x20]/', $url) || ($scheme !== null && !in_array(strtolower((string) $scheme), ['http', 'https'], true))) {
+										return $match[2];
+									}
+									return '<a href="' . $match[1] . '">' . $match[2] . '</a>';
+								}, $colval);
 							}
 
 						$cellbody .= $colval;
@@ -491,7 +498,7 @@ class Table
 		if ($this->ajax) {
 			$flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 			$ajaxData = json_encode([$this->var_page => $number], $flags);
-			$onclick = ' onclick="Tabs.refreshTab(' . $ajaxData . '); return false;"';
+			$onclick = ' onclick="' . eHtml('Tabs.refreshTab(' . $ajaxData . '); return false;') . '"';
 		}
 
 		echo "{$prefix}<a href=\"{$urlSafe}\"{$onclick}>{$label}</a>{$postfix} ";

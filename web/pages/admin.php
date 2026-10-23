@@ -1059,6 +1059,9 @@ $admintasks['tools_settings_copy'] = new AdminTask('Duplicate Game settings', 80
 if (!empty($admintasks[$selTask]) && ($admintasks[$selTask]->type == 'tool' || $admintasks[$selTask]->type == 'subtool'))
 {
 	$task = $admintasks[$selTask];
+	if ($auth->userdata['acclevel'] < $task->acclevel) {
+		die('Access denied!');
+	}
 
 	$code = $selTask;
 ?>

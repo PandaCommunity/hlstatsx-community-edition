@@ -168,6 +168,11 @@ function scanCopyFiles($source,$dest) {
 		if (isset($_POST['game2name']))
 			if ($_POST['game2name']!='')
 				$game2name = $_POST['game2name'];
+
+		if (!is_string($game1) || !preg_match('/^[a-zA-Z0-9_-]+$/D', $game1)
+			|| !is_string($game2) || !preg_match('/^[a-zA-Z0-9_-]+$/D', $game2)) {
+			die('Invalid game code.');
+		}
 		
 		echo '<ul><br />';
 		check_writable();
