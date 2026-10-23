@@ -4,6 +4,7 @@
 
 - **PHP:** version 8.5 or higher required.
 - **MySQL / MariaDB:** version 5.7 or higher required (recommended 8.0).
+- The web database account needs **CREATE TEMPORARY TABLES** on the HLstatsX database for clan and country rankings. These request-local summaries are dropped after use; no persistent summary tables are created.
 ---
 HLstatsX Community Edition is an open-source project licensed
 under GNU General Public License v2 and is a real-time stats
