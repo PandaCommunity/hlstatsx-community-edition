@@ -1252,46 +1252,45 @@ sub DoClans
 
 sub DoPruning
 {
-	$result = &doQuery("SELECT `value` FROM hlstats_Options WHERE keyname='DeleteDays'");
-	my ($g_deletedays) = $result->fetchrow_array;
-	
-	print "++ Cleaning up database: deleting events older than $g_deletedays days... ";
-	
-	foreach $eventTable (keys(%g_eventTables))
-	{
-		&execNonQuery("
-			DELETE FROM
-					hlstats_Events_$eventTable
-			WHERE
-					eventTime < DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL $g_deletedays DAY)
-			");
+	# Freeze all cutoffs once: a long backlog must not advance the expiry window.
+	# Pruning precedes awards, including historical --date/--numdays requests.
+	# Keep the boundary day for DATE-valued player history as well as event times.
+	my $event_cutoff = "DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL value DAY)";
+	if ($opt_awards) {
+		$event_cutoff = "LEAST($event_cutoff, DATE_SUB($date_base, INTERVAL $opt_numdays DAY))";
 	}
-	
-	print "done\n++ Cleaning up database: deleting player history older than $g_deletedays days... ";
-	&execNonQuery("
-		DELETE FROM
-			hlstats_Players_History
-		WHERE
-			eventTime < DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL $g_deletedays DAY)
+	my $cutoffs = &doQuery("
+		SELECT $event_cutoff, UNIX_TIMESTAMP() - 172800,
+			UNIX_TIMESTAMP(CURRENT_TIMESTAMP() - INTERVAL 1 YEAR)
+		FROM hlstats_Options WHERE keyname='DeleteDays'
 	");
-	
-	print "done\n++ Cleaning up database: deleting stale trend samples... ";
-	&execNonQuery("
-		DELETE FROM
-			hlstats_Trend
-		WHERE
-			timestamp < (UNIX_TIMESTAMP() - 172800)
-	");
-    
-	print "done\n++ Cleaning up database: deleting server load history older than one year... ";
-	&execNonQuery("
-        DELETE FROM
-            hlstats_server_load
-        WHERE
-            timestamp < (UNIX_TIMESTAMP(CURRENT_TIMESTAMP() - INTERVAL 1 YEAR))
-	");
-    
-	print "done\n";
+	my ($events_before, $trend_before, $load_before) = $cutoffs->fetchrow_array;
+	my @tables = (
+		(map { ["hlstats_Events_$_", "eventTime", $events_before] } sort keys %g_eventTables),
+		["hlstats_Players_History", "eventTime", $events_before],
+		["hlstats_Trend", "timestamp", $trend_before],
+		["hlstats_server_load", "timestamp", $load_before]
+	);
+
+	# Each statement releases MyISAM's write lock. Yield between full batches
+	# so ingestion can run; the time-leading indexes avoid repeated table scans.
+	my $batch_size = 1000;
+	foreach my $entry (@tables) {
+		my ($table, $column, $cutoff) = @$entry;
+		my $quoted_cutoff = $db_conn->quote($cutoff);
+		print "++ Cleaning up $table: deleting $column < $quoted_cutoff... ";
+		my $deleted;
+		do {
+			my $batch = &doQuery("
+				DELETE FROM $table WHERE $column < $quoted_cutoff
+				ORDER BY $column LIMIT $batch_size
+			");
+			$deleted = $batch->rows;
+			$batch->finish;
+			select(undef, undef, undef, 0.01) if ($deleted == $batch_size);
+		} while ($deleted == $batch_size);
+		print "done\n";
+	}
 }
 
 sub DoOptimize
