@@ -26,12 +26,13 @@ function time_convert($time)
 function VentriloDisplayEX1( &$stat, $name, $cid, $bgidx )
 {
 	$chan = $stat->ChannelFind( $cid );
-
+	$disp_out = '';
+	$img = 'pub_exp';
 
 	$bg = "#000000";
 
     $fg = "#FE7200";
-	if ( $chan->m_prot == "0" )
+	if ( $chan && $chan->m_prot == "0" )
 	{
   		if ( $bgidx %2 ){
 			$img = "pub_min";
@@ -41,7 +42,7 @@ function VentriloDisplayEX1( &$stat, $name, $cid, $bgidx )
 			$img = "pub_exp";
 		}
 	}
-	else if ( $chan->m_prot == "1" )
+	else if ( $chan && $chan->m_prot == "1" )
 	{
   		if ( $bgidx %2 ){
 			$img = "pass_min";
@@ -51,7 +52,7 @@ function VentriloDisplayEX1( &$stat, $name, $cid, $bgidx )
 			$img = "pass_exp";
 		}
 	}
-	else if ( $chan->m_prot == "2" )
+	else if ( $chan && $chan->m_prot == "2" )
 	{
   		if ( $bgidx %2 ){
 			$img = "auth_min";
@@ -66,7 +67,7 @@ function VentriloDisplayEX1( &$stat, $name, $cid, $bgidx )
 	if($name != 'nil232143241432432131')
 	{
 		$disp_out .= "  <td style=\"padding-left:20px;border:0;\"><img src=\"".IMAGE_PATH."/ventrilo/".$img.".gif\" alt=\"\" class=\"tsicon\"/>&nbsp;<span style=\"color:$fg;font-weight:bold;\">";
-		$disp_out .= $name;
+		$disp_out .= eHtml($name);
 		$disp_out .= "</span>\n";
 	}
 	else
@@ -75,18 +76,15 @@ function VentriloDisplayEX1( &$stat, $name, $cid, $bgidx )
 	}
 	$clientcount = count( $stat->m_clientlist );
 	$chancount = count($stat->m_channellist);
+	$disp_out .= "      <table>\n";
   
 	// Display Client for this channel.
-	$found = 1;
 	for ( $i = 0; $i < $clientcount; $i++ )
 	{
 		$client = $stat->m_clientlist[ $i ];
 		
 		if ( $client->m_cid != $cid )
 			continue;
-		if ($found == 1)
-			$disp_out .= "      <table>\n";
-		$found++;
 		$disp_out .= "      <tr>\n";
 		$disp_out .= "        <td style=\"border:0;\"><img src=\"".IMAGE_PATH."/ventrilo/user.gif\" alt=\"\" class=\"tsicon\"/>&nbsp;";
 
@@ -101,9 +99,9 @@ function VentriloDisplayEX1( &$stat, $name, $cid, $bgidx )
 		if ( strlen( $flags ) )
 			$disp_out .= "\"$flags\" ";
 		
-		$disp_out .= $client->m_name;
+		$disp_out .= eHtml($client->m_name);
 		if ( $client->m_comm )
-			$disp_out .= " ($client->m_comm)";
+			$disp_out .= " (" . eHtml($client->m_comm) . ")";
 		
 		$disp_out .= "  </td>\n";
 		$disp_out .= "      </tr>\n";
@@ -123,8 +121,7 @@ function VentriloDisplayEX1( &$stat, $name, $cid, $bgidx )
 			$disp_out .= VentriloDisplayEX1( $stat, $cn, $stat->m_channellist[ $i ]->m_cid, $bgidx + 1 );		
 		}
 	}
-	if ($found > 1)
-		$disp_out .= "      </table>\n";
+	$disp_out .= "      </table>\n";
 	
 	$disp_out .= "    </td>\n";
 	$disp_out .= "  </tr>\n";
@@ -137,9 +134,10 @@ function show($tpl, $array)
 {
     $template = PAGE_PATH."/templates/ventrilo/".$tpl;
   
-    if($fp = @fopen($template.".".html, "r"))
+    if($fp = @fopen($template.'.html', "r"))
 	{
-		$tpl = @fread($fp, filesize($template.".".html));
+		$tpl = fread($fp, filesize($template.'.html'));
+		fclose($fp);
 	}
 	else
 	{
@@ -159,10 +157,7 @@ function show($tpl, $array)
 
     $uip 	= $s['addr'];
     $port 	= $s['queryPort'];
-	$password = $s['password'];
-	if (strlen($password < 1)){
-		$password = '';
-	}
+	$password = $s['password'] ?? '';
 
 	$stat = new CVentriloStatus;
 	$stat->m_cmdcode	= 2;					// Detail mode.
@@ -174,19 +169,19 @@ function show($tpl, $array)
 	
 	if ( $rc )
 	{
-		error("No Ventrilo", 1);
-		echo "CVentriloStatus->Request() failed. <strong>$stat->m_error</strong><br><br>\n";
+		error("No Ventrilo: " . $stat->m_error, false);
+		return;
 	}
 	else
 	{
-		$name = $stat->m_name;
-		$os = $stat->m_platform;
-		$uptime = $stat->m_uptime;
+		$name = eHtml($stat->m_name ?? '');
+		$os = eHtml($stat->m_platform ?? '');
+		$uptime = (int) $stat->m_uptime;
 		$cAmount = $stat->m_channelcount;
 		$user = $stat->m_clientcount;
 		$max = $stat->m_maxclients;
 		$channels = VentriloDisplayEX1( $stat, 'nil232143241432432131', 0, 0 );
-		$chan .= show("channel", array("channel" => $channels , "subchannels" => $subchan ));
+		$chan = show("channel", array("channel" => $channels , "subchannels" => '' ));
     }
 
     $outp_str = show("ventrilo", array(
@@ -197,7 +192,6 @@ function show($tpl, $array)
 		"t_name" => "Server name",
 		"t_os" => "Operating system",
 		"uchannels" => $chan,
-		"info" => $info,
 		"t_uptime" => "Uptime",
 		"t_channels" => "Channels",
 		"t_user" => "Users",
@@ -209,9 +203,7 @@ function show($tpl, $array)
 		"max" => $max,
 		"channels" => $cAmount,
 		"logintime" => "Login time",
-		"idletime" => "Idle time",
-		"channelstats" => $channelstats,
-		"userstats" => $userstats
+		"idletime" => "Idle time"
 	));
 					   
     echo $outp_str;
