@@ -21,7 +21,7 @@ There are two upgrade generations; they must not be mixed:
 | Order | Migration | Effect |
 | --- | --- | --- |
 | 1 | `2026_10_23_1000_query_indexes.sql` | Event/profile lookup and graph time-order indexes |
-| 2 | `2026_10_23_1005_chat_pagination.sql` | Cover global chat's per-server date/id candidate prefixes; replace the single-column server key |
+| 2 | `2026_10_23_1005_chat_pagination.sql` | Cover global chat's per-server date/id candidate prefixes; retain the compact server key for fast legacy totals (which may include orphaned-player messages) |
 
 Before each deployment:
 
