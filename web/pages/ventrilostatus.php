@@ -248,8 +248,11 @@ class CVentriloStatus
 		if ( StrKey( $str, "AUTH:", $this->m_auth ) )
 			return 0;
 		
-		if ( StrKey( $str, "MAXCLIENTS:", $this->m_maxclients ) )
+		if ( StrKey( $str, "MAXCLIENTS:", $val ) )
+		{
+			$this->m_maxclients = max(0, (int) $val);
 			return 0;
+		}
 		
 		if ( StrKey( $str, "VOICECODEC:", $val ) )
 		{
@@ -283,8 +286,11 @@ class CVentriloStatus
 			return 0;
 		}
 			
-		if ( StrKey( $str, "CHANNELCOUNT:", $this->m_channelcount ) )
+		if ( StrKey( $str, "CHANNELCOUNT:", $val ) )
+		{
+			$this->m_channelcount = max(0, (int) $val);
 			return 0;
+		}
 			
 		if ( StrKey( $str, "CHANNELFIELDS:", $this->m_channelfields ) )
 			return 0;
@@ -298,8 +304,11 @@ class CVentriloStatus
 			return 0;
 		}
 			
-		if ( StrKey( $str, "CLIENTCOUNT:", $this->m_clientcount ) )
+		if ( StrKey( $str, "CLIENTCOUNT:", $val ) )
+		{
+			$this->m_clientcount = max(0, (int) $val);
 			return 0;
+		}
 			
 		if ( StrKey( $str, "CLIENTFIELDS:", $this->m_clientfields ) )
 			return 0;
@@ -548,28 +557,30 @@ class Vent
 			fclose( $sfh );
 			return false;
 		}
-		$deadline = microtime(true) + $this->timeout / 1000000;
+		// Preserve the per-read idle timeout while bounding a full 32-packet reply.
+		$deadline = microtime(true) + VENT_MAXPACKETNO * $this->timeout / 1000000;
 
 		/* read response packets off the stream. with UDP, packets can (and often)
 		*   come out of order, so we'll put then back together after closing the socket.
 		*/
 		while ( ($remaining = $deadline - microtime(true)) > 0 ) {
-			$microsecs = max(1, (int) ($remaining * 1000000));
+			$microsecs = max(1, min($this->timeout, (int) ($remaining * 1000000)));
 			stream_set_timeout( $sfh, intdiv($microsecs, 1000000), $microsecs % 1000000 );
 			$pck = @fread( $sfh, VENT_MAXPACKETSIZE + 1 );
 			if ( $pck === false || $pck === '' ) { break; }
 
 			$rpobj = new VentResponsePacket( $pck );
+			// Ignore identifiable traffic for other requests, even if its body is invalid.
+			// A truncated/undecodable header has no ID and remains a protocol error.
+			if ( $rpobj->id !== null && $rpobj->id != $this->clock ) { continue; }
 			if ( $rpobj->error !== '' ) {
 				$this->error = $rpobj->error;
 				fclose( $sfh );
 				return false;
 			}
 
-			/* check the id / clock. They should match the request, if not - skip it.
-			* also skip if there's a duplicate packet. Could throw an error here.
-			*/
-			if (( $rpobj->id != $this->clock ) || ( isset( $this->packets[$rpobj->pck] ))) { continue; }
+			// Skip duplicate packets belonging to this request.
+			if ( isset( $this->packets[$rpobj->pck] ) ) { continue; }
 
 			if ( count( $this->packets ) ) {
 				$first = reset( $this->packets );

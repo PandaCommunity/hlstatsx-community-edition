@@ -2,7 +2,8 @@
 /* Run: php tests/ventrilo.php (PHP 8.5+, pcntl on Unix).
  * Browser fixture: php tests/ventrilo.php --serve 37840 success
  * Scenarios: success, empty-lists, empty, timeout, error, malformed, missing,
- * bad-crc, bad-length, bad-index, inconsistent.
+ * bad-crc, bad-length, bad-index, inconsistent, hostile-counts, delayed,
+ * unrelated-invalid, irrelevant-traffic.
  *
  * Wire arithmetic follows Luigi Auriemma's ventrilo_udp.h:
  * https://aluigi.altervista.org/papers/ventrilo_udp.h
@@ -67,6 +68,11 @@ function fixtureText($scenario)
     if ($scenario === 'empty-lists') {
         return $text . "CHANNELCOUNT: 0\nCLIENTCOUNT: 0\n";
     }
+    if ($scenario === 'hostile-counts') {
+        return str_replace('MAXCLIENTS: 24', 'MAXCLIENTS: <iframe srcdoc=x>', $text)
+            . "CHANNELCOUNT: <img src=x onerror=alert(document.domain)>\n"
+            . "CLIENTCOUNT: <svg onload=alert(document.domain)>\n";
+    }
     return $text . 'COMMENT: ' . str_repeat('Padding ', 60) . "\n"
         . "CHANNELCOUNT: 3\nCLIENTCOUNT: 3\n"
         . "CHANNEL: CID=1,PID=0,PROT=0,NAME=Lobby\r\n"
@@ -100,9 +106,20 @@ function fixtureReply($socket, $scenario)
     $crc = fixtureCRC($text) ^ ($scenario === 'bad-crc' ? 1 : 0);
     $total = strlen($text) + ($scenario === 'bad-length' ? 1 : 0);
     // Deliver out of order, with a wrong-ID packet and a duplicate before packet 0.
-    stream_socket_sendto($socket, fixturePacket(($head[2] + 1) & 65535, 'ignored', 7, 1, 0, fixtureCRC('ignored')), 0, $peer);
+    $unrelated = fixturePacket(($head[2] + 1) & 65535, 'ignored', 7, 1,
+        $scenario === 'unrelated-invalid' ? 1 : 0, fixtureCRC('ignored'));
+    stream_socket_sendto($socket, $unrelated, 0, $peer);
+    if ($scenario === 'irrelevant-traffic') {
+        $until = microtime(true) + 1.2;
+        while (microtime(true) < $until) {
+            stream_socket_sendto($socket, $unrelated, 0, $peer);
+            usleep(5000);
+        }
+        return;
+    }
     foreach (array_reverse(array_keys($chunks)) as $i) {
         if ($scenario === 'missing' && $i === 0) { continue; }
+        if ($scenario === 'delayed') { usleep(60000); }
         $packet = fixturePacket($head[2], $chunks[$i], $total, count($chunks),
             $scenario === 'bad-index' ? count($chunks) : $i,
             $crc ^ ($scenario === 'inconsistent' && $i === 0 ? 1 : 0));
@@ -191,7 +208,7 @@ check($head[2] === 123 && $head[8] === fixtureCRC(pack('a16', "\x80secret")), 'B
 check(fixtureCipher(substr($request->packet, 20), $head[7], false, -1) === pack('a16', "\x80secret"), 'Binary-password encoding failed');
 echo "PASS request encoding and unsigned CRC\n";
 
-foreach (array('success', 'empty-lists', 'empty', 'timeout', 'error', 'malformed', 'missing', 'bad-crc', 'bad-length', 'bad-index', 'inconsistent') as $scenario) {
+foreach (array('hostile-counts', 'delayed', 'unrelated-invalid', 'success', 'empty-lists', 'empty', 'timeout', 'error', 'malformed', 'missing', 'bad-crc', 'bad-length', 'bad-index', 'inconsistent') as $scenario) {
     withFixture($scenario, function ($port) use ($scenario) {
         $status = new CVentriloStatus;
         $status->m_cmdcode = 2;
@@ -203,12 +220,15 @@ foreach (array('success', 'empty-lists', 'empty', 'timeout', 'error', 'malformed
         $rc = $status->Request();
         check(ob_get_clean() === '', 'Request must not print transport diagnostics');
         check(microtime(true) - $start < 1, 'Request did not respect its timeout');
-        if ($scenario === 'success') {
+        if (in_array($scenario, array('success', 'delayed', 'unrelated-invalid'), true)) {
             check($rc === 0 && $status->m_name === 'Fixture Voice' && $status->m_auth === '0', 'Server fields failed');
-            check($status->m_channelcount === '3' && count($status->m_channellist) === 3, 'Channel lines were lost');
-            check($status->m_clientcount === '3' && count($status->m_clientlist) === 3, 'Client lines were lost');
+            check((int) $status->m_channelcount === 3 && count($status->m_channellist) === 3, 'Channel lines were lost');
+            check((int) $status->m_clientcount === 3 && count($status->m_clientlist) === 3, 'Client lines were lost');
             check($status->ChannelPathName(1) === 'Lobby/Squad & Friends', 'Channel hierarchy failed');
             check($status->m_clientlist[1]->m_name === 'Zoë, Scout' && $status->m_clientlist[1]->m_comm === '<b>ready</b>', 'Client text decoding failed');
+        } elseif ($scenario === 'hostile-counts') {
+            check($rc === 0 && $status->m_channelcount === 0 && $status->m_clientcount === 0
+                && $status->m_maxclients === 0, 'Hostile counts were not normalized');
         } elseif ($scenario === 'empty-lists') {
             check($rc === 0 && $status->m_channellist === array() && $status->m_clientlist === array(), 'Empty server failed');
         } else {
@@ -223,7 +243,19 @@ foreach (array('success', 'empty-lists', 'empty', 'timeout', 'error', 'malformed
     echo "PASS UDP $scenario\n";
 }
 
-foreach (array('success', 'empty-lists', 'timeout') as $scenario) {
+withFixture('irrelevant-traffic', function ($port) {
+    $vent = new Vent;
+    $vent->setTimeout(20000);
+    $start = microtime(true);
+    check(!$vent->makeRequest(2, '127.0.0.1', $port, 'status'), 'Irrelevant traffic must not succeed');
+    $elapsed = microtime(true) - $start;
+    // 32 packet slots × 20 ms idle budget = 640 ms maximum overall collection.
+    check($elapsed >= 0.5 && $elapsed < 1 && strpos($vent->error, 'Timed out') !== false,
+        'Irrelevant traffic must stop at the overall deadline: ' . $elapsed);
+});
+echo "PASS overall deadline under continuous irrelevant traffic\n";
+
+foreach (array('success', 'empty-lists', 'timeout', 'hostile-counts') as $scenario) {
     withFixture($scenario, function ($port) use ($scenario) {
         $process = proc_open(array(PHP_BINARY, __FILE__, '--render', (string) $port),
             array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
@@ -236,7 +268,13 @@ foreach (array('success', 'empty-lists', 'timeout') as $scenario) {
             check(strpos($html, 'No Ventrilo: Timed out') !== false && strpos($html, 'Ventrilo Overview') === false, 'Viewer timeout was not rendered');
         } else {
             check(strpos($html, 'Ventrilo Overview') !== false, 'Viewer overview missing');
-            check(strpos($html, $scenario === 'success' ? '3/24' : '0/24') !== false, 'Server-list slots incorrect');
+            $slots = $scenario === 'success' ? '3/24' : ($scenario === 'hostile-counts' ? '0/0' : '0/24');
+            check(strpos($html, $slots) !== false, 'Server-list slots incorrect');
+            if ($scenario === 'hostile-counts') {
+                check(strpos($html, '<img src=x') === false && strpos($html, '<svg') === false
+                    && strpos($html, '<iframe') === false && strpos($html, 'alert(document.domain)') === false,
+                    'Hostile counts emitted markup in viewer or server list');
+            }
             if ($scenario === 'success') {
                 check(strpos($html, 'Squad &amp; Friends') !== false && strpos($html, 'Zoë, Scout') !== false, 'Channel/client rendering missing');
                 check(strpos($html, '&lt;b&gt;ready&lt;/b&gt;') !== false && strpos($html, '<b>ready</b>') === false, 'Server markup must render as text');
