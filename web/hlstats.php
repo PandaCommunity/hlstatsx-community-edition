@@ -217,7 +217,9 @@ $valid_modes = array(
 	'profile'
 );
    
-if (file_exists('./updater') && $mode != 'updater')
+// Development environments (e.g. Amp orbs) keep the updater/ folder in place
+// and set HLSTATS_SKIP_UPDATER_WARNING to avoid blocking every page on it.
+if (file_exists('./updater') && $mode != 'updater' && !getenv('HLSTATS_SKIP_UPDATER_WARNING'))
 {
 	pageHeader(array('Update Notice'), array('Update Notice' => ''));
 	echo "<div class=\"warning\">\n" . 

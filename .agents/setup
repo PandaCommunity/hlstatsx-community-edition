@@ -1,0 +1,322 @@
+#!/usr/bin/env bash
+# Prepares a fresh orb for HLstatsX Community Edition:
+#   - PHP 8.5 (the target for the ongoing PHP 8 migration) with the extensions the app uses
+#   - Caddy + PHP-FPM with OPcache serving the frontend
+#   - MariaDB with the HLstatsX schema imported and a seeded admin account
+#   - Composer plus PHP_CodeSniffer/PHPCompatibility for the migration
+#   - The Perl modules required by the log daemon
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+started_at=$SECONDS
+step() {
+  printf '\n[setup +%ss] %s\n' "$((SECONDS - started_at))" "$*"
+}
+
+# ---------------------------------------------------------------------------
+# System packages
+# ---------------------------------------------------------------------------
+php_packages=(
+  php8.5-cli
+  php8.5-fpm
+  # OPcache is built into php8.5 in Sury, so there is no php8.5-opcache package.
+  php8.5-mysql
+  php8.5-gd
+  php8.5-mbstring
+  php8.5-curl
+  php8.5-xml
+  php8.5-zip
+  php8.5-intl
+  php8.5-bcmath
+)
+db_packages=(mariadb-server mariadb-client)
+web_packages=(caddy)
+perl_packages=(
+  libdbi-perl
+  libdbd-mysql-perl
+  libsyntax-keyword-try-perl
+  libconfigreader-simple-perl
+)
+
+missing_packages=()
+for package in "${php_packages[@]}" "${db_packages[@]}" "${web_packages[@]}" "${perl_packages[@]}"; do
+  if ! dpkg -s "$package" >/dev/null 2>&1; then
+    missing_packages+=("$package")
+  fi
+done
+
+if ((${#missing_packages[@]} > 0)); then
+  step "Installing ${#missing_packages[@]} system packages"
+
+  # PHP 8.5 is not in Debian 12, so use the Sury repository when it is not
+  # already configured. Debian's PHP 8.2 is deliberately not installed: the
+  # migration target is 8.5.
+  if ! apt-cache policy php8.5-cli 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+    step "Adding the Sury PHP repository"
+    curl -fsSL https://packages.sury.org/php/apt.gpg | sudo tee /usr/share/keyrings/sury-php.gpg >/dev/null
+    printf 'deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ bookworm main\n' \
+      | sudo tee /etc/apt/sources.list.d/sury-php.list >/dev/null
+  fi
+
+  sudo apt-get update -qq
+  sudo env DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y --no-install-recommends "${missing_packages[@]}"
+else
+  step "System packages already installed"
+fi
+
+# The Debian package starts its own Caddy on :80. The orb runs Caddy as an Amp
+# service with .amp/Caddyfile instead.
+if systemctl list-unit-files caddy.service >/dev/null 2>&1; then
+  sudo systemctl disable --now caddy >/dev/null 2>&1 || true
+fi
+
+# A previous setup may have left the PHP 8.4 FPM unit enabled.
+if systemctl list-unit-files php8.4-fpm.service >/dev/null 2>&1; then
+  sudo systemctl disable --now php8.4-fpm >/dev/null 2>&1 || true
+fi
+
+if ! php -r 'exit(PHP_VERSION_ID >= 80500 ? 0 : 1);'; then
+  if [ -x /usr/bin/php8.5 ]; then
+    sudo update-alternatives --set php /usr/bin/php8.5
+  fi
+fi
+if ! php -r 'exit(PHP_VERSION_ID >= 80500 ? 0 : 1);'; then
+  echo "The default 'php' is not PHP 8.5 (found $(php -r 'echo PHP_VERSION;'))." >&2
+  echo "Check update-alternatives: php8.5-cli should provide /usr/bin/php." >&2
+  exit 1
+fi
+step "PHP $(php -r 'echo PHP_VERSION;') ready"
+
+# ---------------------------------------------------------------------------
+# PHP development defaults
+# ---------------------------------------------------------------------------
+php_scan_dir="$(php --ini | awk -F': ' '/Scan for additional .ini files in/ {print $2}' | tr -d '"')"
+if [ -n "$php_scan_dir" ] && [ "$php_scan_dir" != "(none)" ]; then
+  sudo tee "$php_scan_dir/99-orb-dev.ini" >/dev/null <<'EOF'
+; Development defaults for Amp orbs. Keep production installs on their own php.ini.
+display_errors = On
+display_startup_errors = On
+error_reporting = E_ALL
+log_errors = On
+memory_limit = 512M
+max_execution_time = 120
+date.timezone = UTC
+EOF
+  step "Wrote $php_scan_dir/99-orb-dev.ini"
+fi
+
+# ---------------------------------------------------------------------------
+# PHP-FPM (the web SAPI behind Caddy)
+# ---------------------------------------------------------------------------
+php_fpm_scan_dir="$(printf '%s' "$php_scan_dir" | sed 's|/cli/|/fpm/|')"
+if [ ! -d "$php_fpm_scan_dir" ]; then
+  php_fpm_scan_dir=/etc/php/8.5/fpm/conf.d
+fi
+if [ ! -d "$php_fpm_scan_dir" ]; then
+  echo "PHP-FPM configuration directory not found." >&2
+  exit 1
+fi
+
+step "Configuring PHP-FPM"
+install -d -m 700 "$HOME/.cache/php-sessions"
+sudo tee "$php_fpm_scan_dir/99-orb-dev.ini" >/dev/null <<'EOF'
+; Development defaults for the Caddy + PHP-FPM orb service.
+display_errors = Off
+display_startup_errors = Off
+error_reporting = E_ALL
+log_errors = On
+memory_limit = 512M
+max_execution_time = 120
+date.timezone = UTC
+session.save_path = /home/user/.cache/php-sessions
+
+; OPcache is on for speed; timestamp validation keeps edits live.
+opcache.enable = 1
+opcache.enable_cli = 0
+opcache.validate_timestamps = 1
+opcache.revalidate_freq = 0
+opcache.memory_consumption = 128
+opcache.interned_strings_buffer = 16
+opcache.max_accelerated_files = 20000
+EOF
+
+fpm_pool_dir=/etc/php/8.5/fpm/pool.d
+if [ ! -d "$fpm_pool_dir" ]; then
+  echo "PHP-FPM pool directory not found." >&2
+  exit 1
+fi
+
+fpm_user="$(id -un)"
+fpm_group="$(id -gn)"
+sudo tee "$fpm_pool_dir/zz-orb.conf" >/dev/null <<EOF
+[orb]
+user = $fpm_user
+group = $fpm_group
+listen = /run/php/php8.5-fpm-orb.sock
+listen.owner = $fpm_user
+listen.group = $fpm_group
+listen.mode = 0660
+
+chdir = $repo_root/web
+
+pm = dynamic
+pm.max_children = 10
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+pm.max_requests = 500
+
+request_terminate_timeout = 120s
+catch_workers_output = yes
+decorate_workers_output = no
+
+env[HLSTATS_DB_ADDR] = 127.0.0.1
+env[HLSTATS_DB_USER] = hlstats
+env[HLSTATS_DB_PASS] = hlstats
+env[HLSTATS_DB_NAME] = hlstatsx
+env[HLSTATS_SKIP_UPDATER_WARNING] = 1
+EOF
+
+sudo php-fpm8.5 -t
+sudo systemctl enable php8.5-fpm >/dev/null 2>&1 || true
+sudo systemctl restart php8.5-fpm
+
+fpm_ready=0
+for _ in $(seq 1 60); do
+  if [ -S /run/php/php8.5-fpm-orb.sock ]; then
+    fpm_ready=1
+    break
+  fi
+  sleep 0.25
+done
+if [ "$fpm_ready" -ne 1 ]; then
+  echo "PHP-FPM did not create its socket within 15 seconds." >&2
+  sudo systemctl status php8.5-fpm --no-pager >&2 || true
+  exit 1
+fi
+
+step "Validating the Caddy configuration"
+PORT=8080 caddy validate --config .amp/Caddyfile --adapter caddyfile
+
+# ---------------------------------------------------------------------------
+# MariaDB
+# ---------------------------------------------------------------------------
+mariadb_tuning=/etc/mysql/mariadb.conf.d/99-orb.cnf
+if [ ! -f "$mariadb_tuning" ]; then
+  step "Tuning MariaDB for a disposable orb"
+  sudo tee "$mariadb_tuning" >/dev/null <<'EOF'
+[mysqld]
+# Orbs are disposable; trade durability for speed.
+innodb_flush_log_at_trx_commit = 0
+sync_binlog = 0
+innodb_buffer_pool_size = 256M
+performance_schema = OFF
+skip-name-resolve
+bind-address = 127.0.0.1
+EOF
+fi
+
+step "Starting MariaDB"
+sudo systemctl enable --now mariadb >/dev/null 2>&1 || sudo systemctl start mariadb
+
+mariadb_ready=0
+for _ in $(seq 1 60); do
+  if sudo mariadb-admin ping --silent >/dev/null 2>&1; then
+    mariadb_ready=1
+    break
+  fi
+  sleep 0.25
+done
+if [ "$mariadb_ready" -ne 1 ]; then
+  echo "MariaDB did not become ready within 15 seconds." >&2
+  exit 1
+fi
+
+step "Ensuring the hlstatsx database and development user"
+sudo mariadb <<'SQL'
+CREATE DATABASE IF NOT EXISTS hlstatsx CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'hlstats'@'%' IDENTIFIED BY 'hlstats';
+ALTER USER 'hlstats'@'%' IDENTIFIED BY 'hlstats';
+GRANT ALL PRIVILEGES ON hlstatsx.* TO 'hlstats'@'%';
+FLUSH PRIVILEGES;
+SQL
+
+if ! sudo mariadb -N -B -e "SELECT 1 FROM hlstatsx.hlstats_Users LIMIT 1" >/dev/null 2>&1; then
+  step "Importing sql/install.sql"
+  sudo mariadb hlstatsx < sql/install.sql
+else
+  step "HLstatsX schema already present"
+fi
+
+if ! sudo mariadb -N -B -e "SELECT 1 FROM hlstatsx.hlstats_Servers WHERE serverId = 1" | grep -q '^1$'; then
+  step "Seeding development data"
+  sudo mariadb hlstatsx < sql/dev-seed.sql
+fi
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+if ! command -v composer >/dev/null 2>&1; then
+  step "Installing Composer"
+  composer_installer="$(mktemp)"
+  curl -fsSL https://getcomposer.org/installer -o "$composer_installer"
+  sudo php "$composer_installer" --quiet --2 --install-dir=/usr/local/bin --filename=composer
+  rm -f "$composer_installer"
+else
+  step "Composer already installed"
+fi
+
+if ! command -v phpcs >/dev/null 2>&1; then
+  step "Installing PHP_CodeSniffer and PHPCompatibility"
+  composer global config --no-interaction allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+  composer global require --no-interaction --no-progress --prefer-dist \
+    "phpcompatibility/php-compatibility:10.0.0-alpha2" \
+    "squizlabs/php_codesniffer:^4.0" \
+    "dealerdirect/phpcodesniffer-composer-installer:^1.2"
+  composer_bin="$(composer global config bin-dir --absolute)"
+  sudo ln -sf "$composer_bin/phpcs" /usr/local/bin/phpcs
+else
+  step "PHP_CodeSniffer already installed"
+fi
+
+# The repository has no composer.json today. Install dependencies if the PHP 8
+# migration (or later work) adds one.
+if [ -f composer.json ]; then
+  step "Installing Composer dependencies"
+  composer install --no-interaction --no-progress --prefer-dist
+fi
+
+step "Checking the Perl daemon modules"
+if ! perl -MGeo::IP::PurePerl -e1 >/dev/null 2>&1; then
+  step "Installing Geo::IP::PurePerl from CPAN"
+  if ! command -v cpanm >/dev/null 2>&1; then
+    sudo apt-get install -y --no-install-recommends cpanminus
+  fi
+  sudo cpanm --notest --quiet Geo::IP::PurePerl
+fi
+
+perl -MDBI -MDBD::mysql -MSyntax::Keyword::Try -MConfigReader::Simple \
+  -MGeo::IP::PurePerl -MNet::FTP -e 'print "Perl daemon modules OK\n"'
+
+# ---------------------------------------------------------------------------
+# Verification
+# ---------------------------------------------------------------------------
+step "Verifying PHP can reach the seeded database"
+php -r '
+$pdo = new PDO("mysql:host=127.0.0.1;dbname=hlstatsx;charset=utf8mb4", "hlstats", "hlstats");
+$tables = (int) $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()")->fetchColumn();
+$users = (int) $pdo->query("SELECT COUNT(*) FROM hlstats_Users")->fetchColumn();
+printf("PHP %s connected to hlstatsx: %d tables, %d admin user(s)\n", PHP_VERSION, $tables, $users);
+'
+
+step "Setup complete in $((SECONDS - started_at))s"
+cat <<'EOF'
+
+Next steps inside the orb:
+  amp orb services ensure        # starts Caddy + PHP-FPM and prints its portal URL
+  php -l <file>                  # syntax check
+  phpcs --standard=PHPCompatibility --runtime-set testVersion 8.5 --extensions=php,class,inc -p web
+EOF

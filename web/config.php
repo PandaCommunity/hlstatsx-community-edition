@@ -40,20 +40,25 @@ if (!defined('IN_HLSTATS')) {
 	die('Do not access this file directly.');
 }
 
+// The DB_* values below can be overridden with environment variables
+// (HLSTATS_DB_ADDR, HLSTATS_DB_USER, HLSTATS_DB_PASS, HLSTATS_DB_NAME). This
+// lets development environments such as Amp orbs supply credentials without
+// editing this file.
+
 // DB_ADDR - The address of the database server, in host:port format.
 //           (You might also try setting this to e.g. ":/tmp/mysql.sock" to
 //           use a Unix domain socket, if your mysqld is on the same box as
 //           your web server.)
-define("DB_ADDR", 'localhost');
+define("DB_ADDR", getenv('HLSTATS_DB_ADDR') ?: 'localhost');
 
 // DB_USER - The username to connect to the database as
-define("DB_USER", '');
+define("DB_USER", getenv('HLSTATS_DB_USER') ?: '');
 
 // DB_PASS - The password for DB_USER
-define("DB_PASS", '');
+define("DB_PASS", getenv('HLSTATS_DB_PASS') ?: '');
 
 // DB_NAME - The name of the database
-define("DB_NAME", '');
+define("DB_NAME", getenv('HLSTATS_DB_NAME') ?: '');
 
 // DB_TYPE - The database server type. Only "mysql" is supported currently
 define("DB_TYPE", 'mysql');
