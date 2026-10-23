@@ -2,7 +2,7 @@
 
 ### 📌 Requirements
 
-- **PHP:** version 7.4 or higher required (recommended 8.0 – 8.4).
+- **PHP:** version 8.5 or higher required.
 - **MySQL / MariaDB:** version 5.7 or higher required (recommended 8.0).
 ---
 HLstatsX Community Edition is an open-source project licensed
@@ -26,4 +26,3 @@ a PHP frontend.
 ### :speech_balloon: Help
 *  https://forums.alliedmods.net/forumdisplay.php?f=156
 ---
-
