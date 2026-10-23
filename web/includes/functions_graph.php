@@ -53,18 +53,18 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 				if ($x1 != $x2) {
 					if ($my_style != -1)
-						imageline($image, $temp_x1, $y1, $temp_x1+$step, $y2, $my_style);
+						imageline($image, (int) $temp_x1, (int) $y1, (int) ($temp_x1+$step), (int) $y2, $my_style);
 					$temp_x1 = $temp_x1 + $step;
 				}
 				if ($y1!=$y2) {
 					if ($my_style != -1)
-						imageline($image, $x1, $temp_y1, $x2, $temp_y1+$step, $my_style);
+						imageline($image, (int) $x1, (int) $temp_y1, (int) $x2, (int) ($temp_y1+$step), $my_style);
 					$temp_y1 = $temp_y1 + $step;
 				}
 				$count = $count + $step;
 			}
 		} else {
-			imageline($image, $x1, $y1, $x2, $y2, $style[0]);
+			imageline($image, (int) $x1, (int) $y1, (int) $x2, (int) $y2, $style[0]);
 		}
     }
 
@@ -99,14 +99,15 @@ For support and installation notes visit http://www.hlxcommunity.com
 				else if ($entry[$name] < 10000)
 					$max_pos_y[$max_index] = $entry[$name] + ($entry[$name] * 0.3);
 				else
-					$max_pos_y[$max_index] = $entry[$name] - ($entry[$name] % 50000) + 100000;
+					$max_pos_y[$max_index] = $entry[$name] - ((int) $entry[$name] % 50000) + 100000;
 
 
 				if ($make_grid > 0) {
-					if ($max_pos_y[$max_index] % 2 != 0)
+					// Modulo historically truncated its operand; keep the fractional scale itself.
+					if ((int) $max_pos_y[$max_index] % 2 != 0)
 						$max_pos_y[$max_index]++;
 					$i = 0;
-					while (($i < 10) && ($max_pos_y[$max_index] % 4 != 0)) {
+					while (($i < 10) && ((int) $max_pos_y[$max_index] % 4 != 0)) {
 						$max_pos_y[$max_index]++;
 						$i++;
 					}
@@ -183,7 +184,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			$step_width = 0;
 			while ($step_diff < 15) {
 				$step_width++;
-				if ($max_pos_y[$max_index] % $step_width == 0) {
+				if ((int) $max_pos_y[$max_index] % $step_width == 0) {
 					$steps = $max_pos_y[$max_index] / $step_width;
 					if ($steps > 0)
 						$step_diff = ($bounds['height']-$bounds['indent_y'][0]-$bounds['indent_y'][1]) / $steps;
@@ -202,7 +203,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 						($bounds['width']-$bounds['indent_x'][1]-1), 
 						$temp_y, 
 						array($color[4], $color[4], $color[4], -1, -1, -1));
-				imageline($image, $bounds['indent_x'][0]+1, $temp_y, $bounds['indent_x'][0]+4, $temp_y, $color[3]);
+				imageline($image, $bounds['indent_x'][0]+1, (int) $temp_y, $bounds['indent_x'][0]+4, (int) $temp_y, $color[3]);
 
 				if ($max_pos_y[$max_index] > 10000) {
 					$str     = sprintf("%.0fk", ($i*$step_width) / 1000);
@@ -210,7 +211,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 					$str     = sprintf("%.0f", $i*$step_width);
 				}  
 				$str_pos = $bounds['indent_x'][0] - (imagefontwidth(1) * strlen($str)) - 2;
-				imagestring($image, 1, $str_pos, $temp_y-3, $str, $color[2]);
+				imagestring($image, 1, $str_pos, (int) ($temp_y-3), $str, $color[2]);
 			}
         
 			if ($max_pos_y[$max_index] > 10000)

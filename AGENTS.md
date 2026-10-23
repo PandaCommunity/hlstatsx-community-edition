@@ -48,6 +48,8 @@ find web -type f \( -name '*.php' -o -name '*.class' \) -print0 |
 phpcs --standard=PHPCompatibility --runtime-set testVersion 8.5 --extensions=php,class,inc -p web
 ```
 
+Run the bundled chart regression checks with `php tests/pchart.php` (GD and FreeType required).
+
 Run `php tests/database.php` with the `HLSTATS_DB_*` environment variables set for the database regression checks. They issue only read-only queries and require no application schema or data.
 
 Run `php tests/import_bans.php` with the same variables pointing to a disposable database for ban-import regression checks. These require CREATE/DROP TABLE privileges and clean up their uniquely named fixture tables.
