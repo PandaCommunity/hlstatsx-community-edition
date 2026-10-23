@@ -1,0 +1,9 @@
+services:
+  web:
+    # Caddy serves web/ directly and proxies PHP to the php8.5-fpm pool
+    # configured by .agents/setup. Amp supplies $PORT to the Caddyfile.
+    command: caddy run --config .amp/Caddyfile --adapter caddyfile
+    health: /hlstats.php
+    portal:
+      title: HLstatsX
+      description: Seeded admin account admin / 123456.

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Keeps the orb usable after a wake. MariaDB and PHP-FPM are enabled as systemd
+# units, so they normally come back on their own; this only repairs a unit that
+# did not.
+set -euo pipefail
+
+if ! sudo systemctl is-active --quiet mariadb; then
+  sudo systemctl start mariadb
+fi
+
+if ! sudo systemctl is-active --quiet php8.5-fpm; then
+  sudo systemctl start php8.5-fpm
+fi
+
+mariadb_ready=0
+fpm_ready=0
+for _ in $(seq 1 12); do
+  if [ "$mariadb_ready" -ne 1 ] && sudo mariadb-admin ping --silent >/dev/null 2>&1; then
+    mariadb_ready=1
+  fi
+  if [ "$fpm_ready" -ne 1 ] && [ -S /run/php/php8.5-fpm-orb.sock ]; then
+    fpm_ready=1
+  fi
+  if [ "$mariadb_ready" -eq 1 ] && [ "$fpm_ready" -eq 1 ]; then
+    exit 0
+  fi
+  sleep 0.25
+done
+
+echo "MariaDB or PHP-FPM did not become ready after resume." >&2
+exit 1

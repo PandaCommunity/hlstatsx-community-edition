@@ -2,3 +2,11 @@
 /web/.idea
 /.vscode
 /.vagrant
+.amp/portals/
+.amp/in/
+/vendor/
+/scripts/logs/
+/scripts/*.pid
+/web/hlstatsimg/progress/server_*.png
+/web/hlstatsimg/progress/trend_*.png
+/web/hlstatsimg/progress/sig_*.png
