@@ -120,7 +120,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 		true
 	);
 
-	$result = $db->query("
+	// Materialize member aggregates once for both the page and its count.
+	$db->query("
+		CREATE TEMPORARY TABLE hlstats_ClanRanking AS
 		SELECT
 			hlstats_Clans.clanId,
 			hlstats_Clans.name,
@@ -130,7 +132,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 			SUM(hlstats_Players.deaths) AS deaths,
 			SUM(hlstats_Players.connection_time) AS connection_time,
 			ROUND(AVG(hlstats_Players.skill)) AS skill,
-			IFNULL(SUM(hlstats_Players.kills)/SUM(hlstats_Players.deaths), '-') AS kpd,
+			IFNULL(SUM(hlstats_Players.kills)/NULLIF(SUM(hlstats_Players.deaths), 0), '-') AS kpd,
+			SUM(activity) AS activity_sum,
 			TRUNCATE(AVG(activity),2) as activity
 		FROM
 			hlstats_Clans,
@@ -142,9 +145,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 			AND hlstats_Players.hideranking = 0
 		GROUP BY
 			hlstats_Clans.clanId
-		HAVING
-			activity >= 0 AND
-			nummembers >= $minmembers
+	");
+	$result = $db->query("
+		SELECT * FROM hlstats_ClanRanking
+		WHERE activity >= 0 AND nummembers >= $minmembers
 		ORDER BY
 			$table->sort $table->sortorder,
 			$table->sort2 $table->sortorder,
@@ -154,25 +158,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 	");
 
 	$resultCount = $db->query("
-		SELECT
-			hlstats_Clans.clanId,
-			SUM(activity) as activity
-		FROM
-			hlstats_Clans
-		LEFT JOIN
-			hlstats_Players
-		ON
-			hlstats_Players.clan = hlstats_Clans.clanId
-		WHERE
-			hlstats_Clans.game = '$game'
-			AND hlstats_Clans.hidden <> 1
-			AND hlstats_Players.hideranking = 0
-		GROUP BY
-			hlstats_Clans.clanId
-		HAVING
-			activity >= 0 AND
-			COUNT(hlstats_Players.playerId) >= $minmembers
+		SELECT COUNT(*) FROM hlstats_ClanRanking
+		WHERE activity_sum >= 0 AND nummembers >= $minmembers
 	");
-	
-	$table->draw($result, $db->num_rows($resultCount), 100);
+	list($numitems) = $db->fetch_row($resultCount);
+	$db->free_result($resultCount);
+	$db->query("DROP TEMPORARY TABLE hlstats_ClanRanking");
+
+	$table->draw($result, $numitems, 100);
 ?>

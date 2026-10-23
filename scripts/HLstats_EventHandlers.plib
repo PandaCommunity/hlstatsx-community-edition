@@ -59,20 +59,6 @@ sub get_fav_weapon  {
 
 	my $result = &doQuery("
 		SELECT
-			IFNULL(ROUND((SUM(hlstats_Events_Statsme.hits) / SUM(hlstats_Events_Statsme.shots) * 100), 0), 0) AS acc
-		FROM
-			hlstats_Events_Statsme, hlstats_Servers
-		WHERE
-			hlstats_Servers.serverId=hlstats_Events_Statsme.serverId
-			AND hlstats_Servers.game='".&quoteSQL($g_servers{$s_addr}->{game})."' AND hlstats_Events_Statsme.PlayerId=".$player->{playerid}."
-			AND hlstats_Events_Statsme.weapon='".&quoteSQL($fav_weapon)."'
-		LIMIT 0,1	
-	");
-	my ($fav_weapon_sm_acc) = $result->fetchrow_array;
-	$result->finish;
-
-	my $result = &doQuery("
-		SELECT
 			hlstats_Events_Frags.weapon,
 			COUNT(hlstats_Events_Frags.weapon) AS kills,
 			SUM(hlstats_Events_Frags.headshot=1) as headshots
@@ -91,24 +77,23 @@ sub get_fav_weapon  {
 
 	my ($s_fav_weapon, $s_fav_weapon_kills, $s_fav_weapon_headshots) = $result->fetchrow_array;
 	$result->finish;
-	my $s_fav_weapon_sm_acc = 0;
-   
-	if (($s_fav_weapon ne "") && ($s_fav_weapon_kills > 0)) {
-		my $result = &doQuery("
-			SELECT
-				IFNULL(ROUND((SUM(hlstats_Events_Statsme.hits) / SUM(hlstats_Events_Statsme.shots) * 100), 0), 0) AS acc
-			FROM
-				hlstats_Events_Statsme, hlstats_Servers
-			WHERE
-				hlstats_Servers.serverId=hlstats_Events_Statsme.serverId
-				AND hlstats_Servers.game='".&quoteSQL($g_servers{$s_addr}->{game})."' AND hlstats_Events_Statsme.PlayerId='".$player->{playerid}."'
-				AND hlstats_Events_Statsme.weapon='".&quoteSQL($s_fav_weapon)."'
-				AND (hlstats_Events_Statsme.eventTime > FROM_UNIXTIME(".$p_connect_time."))
-			LIMIT 0,1	
-		");
-		($s_fav_weapon_sm_acc) = $result->fetchrow_array;
-		$result->finish;
-	}
+
+	# Share the retained Statsme scan, but keep accuracy as a ratio of sums.
+	my $fav_condition = "weapon='" . &quoteSQL($fav_weapon) . "'";
+	my $session_condition = "weapon='" . &quoteSQL($s_fav_weapon) . "' AND eventTime > FROM_UNIXTIME(" . $p_connect_time . ")";
+	my $result = &doQuery("
+		SELECT
+			IFNULL(ROUND(SUM(IF($fav_condition, hits, 0)) / SUM(IF($fav_condition, shots, 0)) * 100, 0), 0),
+			IFNULL(ROUND(SUM(IF($session_condition, hits, 0)) / SUM(IF($session_condition, shots, 0)) * 100, 0), 0)
+		FROM hlstats_Events_Statsme
+		JOIN hlstats_Servers ON hlstats_Servers.serverId=hlstats_Events_Statsme.serverId
+		WHERE hlstats_Servers.game='" . &quoteSQL($g_servers{$s_addr}->{game}) . "'
+			AND hlstats_Events_Statsme.playerId=" . $player->{playerid} . "
+			AND ($fav_condition OR ($session_condition))
+	");
+	my ($fav_weapon_sm_acc, $s_fav_weapon_sm_acc) = $result->fetchrow_array;
+	$result->finish;
+	$s_fav_weapon_sm_acc = 0 unless (($s_fav_weapon ne "") && ($s_fav_weapon_kills > 0));
    
 	return ($g_games{$g_servers{$s_addr}->{game}}{weapons}{$fav_weapon}{name}, $fav_weapon_kills, $fav_weapon_sm_acc, $g_games{$g_servers{$s_addr}->{game}}{weapons}{$s_fav_weapon}{name}, $s_fav_weapon_kills, $s_fav_weapon_sm_acc);
 }

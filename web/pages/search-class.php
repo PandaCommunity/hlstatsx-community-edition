@@ -331,12 +331,13 @@ For support and installation notes visit http://www.hlxcommunity.com
 						COUNT(*)
 					FROM
 						hlstats_PlayerUniqueIds
-					LEFT JOIN
-						hlstats_Players
+					INNER JOIN
+						hlstats_Games
 					ON
-						hlstats_Players.playerId = hlstats_PlayerUniqueIds.playerId
+						hlstats_Games.code = hlstats_PlayerUniqueIds.game
 					WHERE
-						hlstats_PlayerUniqueIds.uniqueId LIKE '%$sr_query%'
+						hlstats_Games.hidden = '0'
+						AND hlstats_PlayerUniqueIds.uniqueId LIKE '%$sr_query%'
 						$andgame
 				");
 				list($numitems) = $db->fetch_row($resultCount);
@@ -400,9 +401,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 								ipAddress
 							FROM
 								`hlstats_Events_Connects`
+							WHERE
+								ipAddress LIKE '$sr_query%'
 							GROUP BY
 								playerId,
 								ipAddress
+							ORDER BY NULL
 						) AS connects
 					LEFT JOIN
 						hlstats_Players
@@ -414,7 +418,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 						hlstats_Games.code = hlstats_Players.game
 					WHERE
 						hlstats_Games.hidden = '0'
-						AND connects.ipAddress LIKE '$sr_query%'
 						$andgame
 					ORDER BY
 						$table->sort $table->sortorder,
@@ -434,9 +437,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 								ipAddress
 							FROM
 								`hlstats_Events_Connects`
+							WHERE
+								ipAddress LIKE '$sr_query%'
 							GROUP BY
 								playerId,
 								ipAddress
+							ORDER BY NULL
 						) AS connects
 					LEFT JOIN
 						hlstats_Players
@@ -448,7 +454,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 						hlstats_Games.code = hlstats_Players.game
 					WHERE
 						hlstats_Games.hidden = '0'
-						AND connects.ipAddress LIKE '$sr_query%'
 						$andgame
 				");
 				list($numitems) = $db->fetch_row($resultCount);
