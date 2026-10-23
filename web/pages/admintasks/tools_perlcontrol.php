@@ -130,6 +130,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 <p>After every configuration change made in the Administration Center, you should reload the daemon configuration.  To do so, enter the hostname or IP address of your HLXCE daemon and choose the reload option.  You can also shut down your daemon from this panel.  <strong>NOTE: The daemon can not be restarted through the web interface!</strong></p>
 
 <form method="POST">
+<?php echo csrf_input(); ?>
 
 	<table class="data-table">
 		<tr class="bg1">
@@ -160,4 +161,4 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 <?php
     }
-?>    
+?>
