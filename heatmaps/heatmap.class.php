@@ -132,7 +132,7 @@ class Heatmap {
                                 }
 
                                 //get the color index with new alpha
-                                $alphacolorxy = imagecolorallocatealpha( $src_im, ( $colorxy >> 16 ) & 0xFF, ( $colorxy >> 8 ) & 0xFF, $colorxy & 0xFF, $alpha );
+                                $alphacolorxy = imagecolorallocatealpha( $src_im, ( $colorxy >> 16 ) & 0xFF, ( $colorxy >> 8 ) & 0xFF, $colorxy & 0xFF, (int) min(127, $alpha) );
 
                                 //set pixel with the new color + opacity
                                 if( !imagesetpixel( $src_im, $x, $y, $alphacolorxy ) ){
@@ -142,7 +142,7 @@ class Heatmap {
                 }
 
                 // The image copy
-                imagecopy($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, $src_w, $src_h);
+                imagecopy($dst_im, $src_im, (int) $dst_x, (int) $dst_y, $src_x, $src_y, $src_w, $src_h);
         }
 
 		public static function generate($code, $map, $mode) {
@@ -231,6 +231,9 @@ class Heatmap {
 				$overlay = imagecreatefrompng($cache_file);
 			} else {
 				$overlay = imagecreatetruecolor(imagesx($img), imagesy($img));
+				$black = imagecolorallocate($overlay, 0, 0, 0);
+				imagefill($overlay, 0, 0, $black);
+				imagecolortransparent($overlay, $black);
 			}
 
 			imagealphablending($overlay, true);
@@ -238,12 +241,6 @@ class Heatmap {
 
 			$brush = imagecreatefrompng("./src/brush_" . $mapinfo[$code][$map]['brush'] . ".png");
 			$brushsize = ($mapinfo[$code][$map]['brush'] == "large") ? 33 : 17;
-
-			$white = imagecolorallocate($overlay, 255, 255, 255);
-			$black = imagecolorallocate($overlay, 0, 0, 0);
-
-			imagefill($overlay, 0, 0, $black);
-			imagecolortransparent($overlay, $black);
 
 			$num_kills = ($num_kills) ? $num_kills : 1;
 
@@ -266,18 +263,21 @@ class Heatmap {
               $x = ($row['pos_x'] + $mapinfo[$code][$map]['xoffset']) / $mapinfo[$code][$map]['scale'];
               $y = ($row['pos_y'] + $mapinfo[$code][$map]['yoffset']) / $mapinfo[$code][$map]['scale'];
 
-              $rgb = imagecolorat($overlay, $x, $y);
+              if ($rotate) {
+                      [$x, $y] = [$y, $x];
+              }
+
+              if ($x < 0 || $y < 0 || $x >= imagesx($overlay) || $y >= imagesy($overlay)) {
+                      continue;
+              }
+
+              $rgb = imagecolorat($overlay, (int) $x, (int) $y);
               $colors = imagecolorsforindex($overlay, $rgb);
 
               if ($colors['red'] > $max_red) $max_red = $colors['red'];
 
               if ($colors['red'] <= 200) {
-                      // Rotate the image
-                      if ($rotate) {
-                              self::printHeatDot($overlay, $brush, $y - ($brushsize / 2), $x - ($brushsize / 2), 0, 0, $brushsize, $brushsize, $opacity);
-                      } else {
-                              self::printHeatDot($overlay, $brush, $x - ($brushsize / 2), $y - ($brushsize / 2), 0, 0, $brushsize, $brushsize, $opacity);
-                      }
+                      self::printHeatDot($overlay, $brush, $x - ($brushsize / 2), $y - ($brushsize / 2), 0, 0, $brushsize, $brushsize, $opacity);
               }
       }
 
@@ -302,12 +302,12 @@ class Heatmap {
 					$rgb = imagecolorsforindex($overlay, $index);
 					$alpha = ( imagecolorat( $overlay, $x, $y ) >> 24 ) & 0xFF;
 
-					$color = imagecolorallocatealpha($img, $colorarr[$rgb['red']][0], $colorarr[$rgb['red']][1], $colorarr[$rgb['red']][2], 127 - ($rgb['red'] / 2));
+					$color = imagecolorallocatealpha($img, $colorarr[$rgb['red']][0], $colorarr[$rgb['red']][1], $colorarr[$rgb['red']][2], (int) (127 - ($rgb['red'] / 2)));
 				if (!imagesetpixel($img, $x, $y, $color)) echo ".";
 				}
 			}
 
-			if ($mapinfo[$code][$map]['cropy2'] > 0 && $mapinfo[$code][$map]['cropy2'] > 0) {
+			if ($mapinfo[$code][$map]['cropx2'] > 0 && $mapinfo[$code][$map]['cropy2'] > 0) {
 				$temp = imagecreatetruecolor($mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
 				imagecopy($temp, $img, 0, 0, $mapinfo[$code][$map]['cropx1'], $mapinfo[$code][$map]['cropy1'], $mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
 				unset($img);
@@ -318,7 +318,7 @@ class Heatmap {
 			}
 
 			if ($mapinfo[$code][$map]['thumbw'] > 0 && $mapinfo[$code][$map]['thumbh'] > 0) {
-				$thumb = imagecreatetruecolor(imagesx($img) * $mapinfo[$code][$map]['thumbw'], imagesy($img) * $mapinfo[$code][$map]['thumbh']);
+				$thumb = imagecreatetruecolor(max(1, (int) (imagesx($img) * $mapinfo[$code][$map]['thumbw'])), max(1, (int) (imagesy($img) * $mapinfo[$code][$map]['thumbh'])));
 				imagecopyresampled($thumb, $img, 0, 0, 0, 0, imagesx($thumb), imagesy($thumb), imagesx($img), imagesy($img));
 				imagejpeg($thumb, $path . "/" . $map . "-" . $mode . "-thumb.jpg", 100);
 				unset($thumb);
@@ -331,7 +331,7 @@ class Heatmap {
 			unset($overlay);
 
 			// Clean upc cache file
-			if (isset($cache_file) && file_exists($cache_file)) {
+			if (isset($cache_file) && $oldtimestamp != $timestamp && file_exists($cache_file)) {
 				unlink(CACHE_DIR . "/$code/{$map}_{$oldtimestamp}.png");
 			}
 			
@@ -347,7 +347,7 @@ class Heatmap {
 			$ignore_infected = Env::get('ignore_infected');
 			$timescope = (time() - 60*60*24*$mapinfo[$code][$map]['days']);
 
-			$map_query = 'SELECT
+			$map_query = '(SELECT
 							"frag" AS killtype,
 					 hef.id,
 							hef.map,
@@ -370,11 +370,11 @@ class Heatmap {
 					$map_query.= '                      AND hef.victimRole != "infected"
 ';
 			}
-					$map_query.= '                      LIMIT ' . KILL_LIMIT . '
+					$map_query.= '                      LIMIT ' . KILL_LIMIT . ')
 
 					UNION ALL
 
-					SELECT
+					(SELECT
 							"teamkill" AS killtype,
 							hef.id,
 							hef.map,
@@ -392,7 +392,7 @@ class Heatmap {
 					AND hef.pos_x IS NOT NULL
 					AND hef.pos_y IS NOT NULL
 					AND hef.eventTime >= FROM_UNIXTIME(' . $timescope . ')
-					LIMIT ' . KILL_LIMIT . '
+					LIMIT ' . KILL_LIMIT . ')
 			';
 			
 			Env::set('map_query', $map_query);
