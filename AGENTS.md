@@ -49,3 +49,5 @@ phpcs --standard=PHPCompatibility --runtime-set testVersion 8.5 --extensions=php
 ```
 
 Run `php tests/database.php` with the `HLSTATS_DB_*` environment variables set for the database regression checks. They issue only read-only queries and require no application schema or data.
+
+Run `php tests/import_bans.php` with the same variables pointing to a disposable database for ban-import regression checks. These require CREATE/DROP TABLE privileges and clean up their uniquely named fixture tables.

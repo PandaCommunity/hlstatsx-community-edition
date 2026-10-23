@@ -337,7 +337,10 @@ print("[+] Successfully connected to HLstatsX database server. Updating players.
 foreach ($hlxdbs as $hlxdb)
 {
     $unbancnt = $bancnt = 0;
-    $hlxcon->select_db($hlxdb);
+    if (!$hlxcon->select_db($hlxdb)) {
+        fwrite(STDERR, "[-] Error selecting HLstatsX database '$hlxdb': (" . $hlxcon->errno . ") " . $hlxcon->error . "\n");
+        exit(1);
+    }
     // Hide all banned players
     if ($hlxban = $hlxcon->query("UPDATE `".HLX_PREFIX."_Players` SET `hideranking` = 2 WHERE `hideranking` < 2 AND `playerId` IN (SELECT `playerId` FROM `".HLX_PREFIX."_PlayerUniqueIds` WHERE `uniqueId` IN (".$bannedsteamids."));")) {
 		$bancnt = ($hlxcon->affected_rows?$hlxcon->affected_rows:0);
