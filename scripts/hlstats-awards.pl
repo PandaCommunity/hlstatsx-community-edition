@@ -133,6 +133,13 @@ Most options can be specified in the configuration file:
 Note: Options set on the command line take precedence over options set in the
 configuration file.
 
+Database privileges: awards require CREATE TEMPORARY TABLES. Ribbons also require
+CREATE, DROP and ALTER (for RENAME TABLE), in addition to normal SELECT/INSERT
+access. Ribbon rebuilds reserve hlstats_Players_Ribbons_build and
+hlstats_Players_Ribbons_old, and publish the completed table atomically. A failed
+build leaves live ribbons intact; rerun to recover. Do not run administrative
+resets or schema maintenance concurrently with a rebuild.
+
 HLstatsX:CE: http://www.hlxce.com
 EOT
 ;
@@ -344,6 +351,106 @@ sub DoInactive
 	print "done\n";
 }
 
+# Run-local summaries deliberately use retained events, not lifetime counters.
+# NULL daily totals mean no events in the strict daily interval, not a zero score.
+sub BuildAwardAggregates
+{
+	my $daily = "eventTime < $date_base AND eventTime > DATE_SUB($date_base, INTERVAL $opt_numdays DAY)";
+	&doQuery("
+		CREATE TEMPORARY TABLE hlstats_award_totals (
+			kind CHAR(1), game VARCHAR(32), code VARCHAR(128), playerId INT UNSIGNED,
+			globalValue DECIMAL(30,0), dailyValue DECIMAL(30,0),
+			INDEX (kind, game, code)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+	&doQuery("
+		CREATE TEMPORARY TABLE hlstats_award_frags AS
+		SELECT p.game, e.killerId AS playerId, e.weapon, e.headshot,
+			COUNT(*) AS total, SUM(IF($daily, 1, NULL)) AS daily
+		FROM hlstats_Events_Frags e
+		INNER JOIN hlstats_Players p ON p.playerId=e.killerId AND p.hideranking=0
+		GROUP BY p.game, e.killerId, e.weapon, e.headshot
+	");
+	for my $metric (
+		["W", "weapon", "1=1"],
+		["E", "'headshot'", "headshot=1"],
+		["E", "'allsentrykills'", "weapon LIKE 'obj_sentrygun%'"]
+	) {
+		my ($kind, $code, $where) = @$metric;
+		&doQuery("
+			INSERT INTO hlstats_award_totals
+			SELECT '$kind', game, $code, playerId, SUM(total), SUM(daily)
+			FROM hlstats_award_frags WHERE $where GROUP BY game, $code, playerId
+		");
+	}
+	&doQuery("
+		CREATE TEMPORARY TABLE hlstats_award_actions AS
+		SELECT 'O' AS kind, playerId, 0 AS victimId, serverId, actionId,
+			COUNT(*) AS total, SUM(IF($daily, 1, NULL)) AS daily,
+			SUM(bonus) AS bonus, SUM(IF($daily, bonus, NULL)) AS dailyBonus
+		FROM hlstats_Events_PlayerActions GROUP BY playerId, serverId, actionId
+		UNION ALL
+		SELECT 'P', playerId, victimId, serverId, actionId,
+			COUNT(*), SUM(IF($daily, 1, NULL)),
+			SUM(bonus), SUM(IF($daily, bonus, NULL))
+		FROM hlstats_Events_PlayerPlayerActions GROUP BY playerId, victimId, serverId, actionId
+	");
+	&doQuery("
+		INSERT INTO hlstats_award_totals
+		SELECT e.kind, p.game, a.code, p.playerId, SUM(e.total), SUM(e.daily)
+		FROM hlstats_award_actions e
+		INNER JOIN hlstats_Players p ON p.playerId=e.playerId AND p.hideranking=0
+		INNER JOIN hlstats_Actions a ON a.id=e.actionId
+		GROUP BY e.kind, p.game, a.code, p.playerId
+	");
+	&doQuery("
+		INSERT INTO hlstats_award_totals
+		SELECT 'V', p.game, a.code, p.playerId, SUM(e.total), SUM(e.daily)
+		FROM hlstats_award_actions e
+		INNER JOIN hlstats_Players p ON p.playerId=e.victimId AND p.hideranking=0
+		INNER JOIN hlstats_Actions a ON a.id=e.actionId
+		WHERE e.kind='P' GROUP BY p.game, a.code, p.playerId
+	");
+	# Bonus and latency attribution is by server game, unlike weapon/action awards.
+	&doQuery("
+		INSERT INTO hlstats_award_totals
+		SELECT 'E', s.game, 'bonuspoints', p.playerId, SUM(e.bonus), SUM(e.dailyBonus)
+		FROM hlstats_award_actions e
+		INNER JOIN hlstats_Players p ON p.playerId=e.playerId AND p.hideranking=0
+		INNER JOIN hlstats_Servers s ON s.serverId=e.serverId
+		GROUP BY s.game, p.playerId
+	");
+	&doQuery("
+		INSERT INTO hlstats_award_totals
+		SELECT 'E', s.game, 'latency', p.playerId,
+			ROUND(ROUND(SUM(ping)/COUNT(ping), 0)/2, 0),
+			ROUND(ROUND(SUM(IF($daily, ping, NULL))/NULLIF(COUNT(IF($daily, ping, NULL)), 0), 0)/2, 0)
+		FROM hlstats_Events_Latency e
+		INNER JOIN hlstats_Players p ON p.playerId=e.playerId AND p.hideranking=0
+		INNER JOIN hlstats_Servers s ON s.serverId=e.serverId
+		GROUP BY s.game, p.playerId
+	");
+	&doQuery("DROP TEMPORARY TABLE hlstats_award_frags, hlstats_award_actions");
+}
+
+sub AwardEventWinners
+{
+	my ($kind, $game, $code) = @_;
+	my $order = $code eq 'latency' ? 'ASC' : 'DESC';
+	my $tie = $kind eq 'E' && ($code eq 'latency' || $code eq 'bonuspoints') ? '' : ', p.skill DESC';
+	my @results;
+	for my $period ('dailyValue', 'globalValue') {
+		push @results, &doQuery("
+			SELECT t.playerId, t.$period FROM hlstats_award_totals t
+			INNER JOIN hlstats_Players p ON p.playerId=t.playerId
+			WHERE t.kind='".&quoteSQL($kind)."' AND t.game='".&quoteSQL($game)."'
+				AND t.code='".&quoteSQL($code)."' AND t.$period IS NOT NULL
+			ORDER BY t.$period $order $tie LIMIT 1
+		");
+	}
+	return @results;
+}
+
 sub DoAwards
 {
 	print "++ Processing awards... ";
@@ -425,88 +532,11 @@ sub DoAwards
 		)
 	");
 
+	BuildAwardAggregates();
 	while( ($awardId, $game, $awardType, $code) = $resultAwards->fetchrow_array )
 	{
-
-		if ($awardType eq "O")
-		{
-			$table = "hlstats_Events_PlayerActions";
-			$join  = "LEFT JOIN hlstats_Actions ON hlstats_Actions.id = $table.actionId";
-			$matchfield = "hlstats_Actions.code";
-			$playerfield = "$table.playerId";
-		}
-		elsif ($awardType eq "W")
-		{
-			$table = "hlstats_Events_Frags";
-			$playerfield = "$table.killerId";
-			if ($code eq "headshot") {
-				$join  = "";
-				$matchfield = "$table.headshot";
-				$code = 1;
-			} else {
-				$join  = "";
-				$matchfield = "$table.weapon";
-			}
-		}
-		elsif ($awardType eq "P")
-		{
-			$table = "hlstats_Events_PlayerPlayerActions";
-			$join  = "LEFT JOIN hlstats_Actions ON hlstats_Actions.id = $table.actionId";
-			$matchfield = "hlstats_Actions.code";
-			$playerfield = "$table.playerId";
-		}
-		elsif ($awardType eq "V")
-		{
-			$table = "hlstats_Events_PlayerPlayerActions";
-			$join  = "LEFT JOIN hlstats_Actions ON hlstats_Actions.id = $table.actionId";
-			$matchfield = "hlstats_Actions.code";
-			$playerfield = "$table.victimId";
-		}
-		
 		if ($code eq "latency") {
-			$resultDaily = &doQuery("
-				SELECT
-					hlstats_Events_Latency.playerId,
-					ROUND(ROUND(SUM(ping) /	COUNT(ping), 0) / 2, 0) AS av_latency
-				FROM
-					hlstats_Events_Latency
-				INNER JOIN
-					hlstats_Servers ON
-					hlstats_Servers.serverId=hlstats_Events_Latency.serverId
-					AND hlstats_Servers.game='".&quoteSQL($game)."'
-				INNER JOIN
-					hlstats_Players	ON
-					hlstats_Players.playerId = hlstats_Events_Latency.playerId
-					AND hlstats_Players.hideranking=0
-				WHERE   
-					hlstats_Events_Latency.eventTime < $date_base
-					AND hlstats_Events_Latency.eventTime > DATE_SUB($date_base, INTERVAL $opt_numdays DAY)
-				GROUP BY
-					hlstats_Events_Latency.playerId
-				ORDER BY 
-					av_latency
-				LIMIT 1    	
-			"); 	
-			$resultGlobal = &doQuery("
-				SELECT
-					hlstats_Events_Latency.playerId,
-					ROUND(ROUND(SUM(ping) /	COUNT(ping), 0) / 2, 0) AS av_latency
-				FROM
-					hlstats_Events_Latency
-				INNER JOIN
-					hlstats_Servers ON
-					hlstats_Servers.serverId=hlstats_Events_Latency.serverId
-					AND hlstats_Servers.game='".&quoteSQL($game)."'
-				INNER JOIN
-					hlstats_Players	ON
-					hlstats_Players.playerId = hlstats_Events_Latency.playerId
-					AND hlstats_Players.hideranking=0
-				GROUP BY
-					hlstats_Events_Latency.playerId
-				ORDER BY 
-					av_latency
-				LIMIT 1    	
-			"); 	
+			($resultDaily, $resultGlobal) = AwardEventWinners('E', $game, $code);
 		} elsif ($code eq "mostkills") {
 			$resultDaily = &doQuery("
 				SELECT
@@ -598,110 +628,8 @@ sub DoAwards
 					teamkills DESC
 				LIMIT 1
 			");
-		} elsif ($code eq "bonuspoints") {
-			$resultDaily = &doQuery("
-				SELECT
-					actions.playerId,
-					SUM(actions.bonus) AS av_bonuspoints
-				FROM
-					(SELECT
-						playerId, bonus, serverId, eventTime 
-					FROM
-						hlstats_Events_PlayerActions 
-					WHERE
-						eventTime < $date_base AND eventTime > DATE_SUB($date_base, INTERVAL $opt_numdays DAY)
-					UNION ALL
-					SELECT
-						playerId, bonus, serverId, eventTime
-					FROM
-						hlstats_Events_PlayerPlayerActions
-					WHERE
-						eventTime < $date_base AND eventTime > DATE_SUB($date_base, INTERVAL $opt_numdays DAY)
-					) actions
-				INNER JOIN
-					hlstats_Servers	ON
-					hlstats_Servers.serverId=actions.serverId
-					AND hlstats_Servers.game='".&quoteSQL($game)."'
-				INNER JOIN
-					hlstats_Players	ON
-					hlstats_Players.playerId = actions.playerId
-					AND hlstats_Players.hideranking=0
-				GROUP BY
-					playerId
-				ORDER BY
-					av_bonuspoints DESC
-				LIMIT 1       
-			");
-			$resultGlobal = &doQuery("
-				SELECT
-					actions.playerId,
-					SUM(actions.bonus) AS av_bonuspoints
-				FROM
-					(SELECT
-						playerId, bonus, serverId, eventTime 
-					FROM
-						hlstats_Events_PlayerActions 
-					UNION ALL
-					SELECT
-						playerId, bonus, serverId, eventTime
-					FROM
-						hlstats_Events_PlayerPlayerActions
-					) actions
-				INNER JOIN
-					hlstats_Servers ON
-					hlstats_Servers.serverId=actions.serverId
-					AND hlstats_Servers.game='".&quoteSQL($game)."'
-				INNER JOIN
-					hlstats_Players	ON
-					hlstats_Players.playerId = actions.playerId
-					AND hlstats_Players.hideranking=0
-				GROUP BY
-					playerId
-				ORDER BY
-					av_bonuspoints DESC
-				LIMIT 1       
-			");
-		} elsif ($code eq "allsentrykills") {
-			$resultDaily = &doQuery("
-				SELECT
-					hlstats_Events_Frags.killerId,
-					COUNT(hlstats_Events_Frags.weapon) AS awardcount
-				FROM
-					hlstats_Events_Frags
-				INNER JOIN hlstats_Players ON
-					hlstats_Players.playerId = hlstats_Events_Frags.killerId
-					AND hlstats_Players.hideranking=0
-				WHERE
-					hlstats_Events_Frags.eventTime < $date_base
-					AND hlstats_Events_Frags.eventTime > DATE_SUB($date_base, INTERVAL $opt_numdays DAY)
-					AND hlstats_Players.game='".&quoteSQL($game)."'
-					AND hlstats_Events_Frags.weapon LIKE 'obj_sentrygun%'
-				GROUP BY
-					hlstats_Events_Frags.killerId
-				ORDER BY
-					awardcount DESC,
-					hlstats_Players.skill DESC
-				LIMIT 1
-			");
-			$resultGlobal = &doQuery("
-				SELECT
-					hlstats_Events_Frags.killerId,
-					COUNT(hlstats_Events_Frags.weapon) AS awardcount
-				FROM
-					hlstats_Events_Frags
-				INNER JOIN hlstats_Players ON
-					hlstats_Players.playerId = hlstats_Events_Frags.killerId
-					AND hlstats_Players.hideranking=0
-				WHERE
-					hlstats_Players.game='".&quoteSQL($game)."'
-					AND hlstats_Events_Frags.weapon LIKE 'obj_sentrygun%'
-				GROUP BY
-					hlstats_Events_Frags.killerId
-				ORDER BY
-					awardcount DESC,
-					hlstats_Players.skill DESC
-				LIMIT 1
-			");
+		} elsif ($code eq "bonuspoints" || $code eq "allsentrykills") {
+			($resultDaily, $resultGlobal) = AwardEventWinners('E', $game, $code);
 		} elsif ($code eq "connectiontime") {
 			$resultDaily = &doQuery("
 				SELECT
@@ -794,48 +722,8 @@ sub DoAwards
 				LIMIT 1
 			");
 		} else {
-			$resultDaily = &doQuery("
-				SELECT
-					$playerfield,
-					COUNT($matchfield) AS awardcount
-				FROM
-					$table
-				INNER JOIN hlstats_Players ON
-					hlstats_Players.playerId = $playerfield
-					AND hlstats_Players.hideranking=0
-				$join
-				WHERE
-					$table.eventTime < $date_base
-					AND $table.eventTime > DATE_SUB($date_base, INTERVAL $opt_numdays DAY)
-					AND hlstats_Players.game='".&quoteSQL($game)."'
-					AND $matchfield='$code'
-				GROUP BY
-					$playerfield
-				ORDER BY
-					awardcount DESC,
-					hlstats_Players.skill DESC
-				LIMIT 1
-			");
-			$resultGlobal = &doQuery("
-				SELECT
-					$playerfield,
-					COUNT($matchfield) AS awardcount
-				FROM
-					$table
-				INNER JOIN hlstats_Players ON
-					hlstats_Players.playerId = $playerfield
-					AND hlstats_Players.hideranking=0
-				$join
-				WHERE
-					hlstats_Players.game='".&quoteSQL($game)."'
-					AND $matchfield='$code'
-				GROUP BY
-					$playerfield
-				ORDER BY
-					awardcount DESC,
-					hlstats_Players.skill DESC
-				LIMIT 1
-			");
+			my $kind = $awardType eq 'W' && $code eq 'headshot' ? 'E' : $awardType;
+			($resultDaily, $resultGlobal) = AwardEventWinners($kind, $game, $code);
 		}
 		
 		($d_winner_id, $d_winner_count) = $resultDaily->fetchrow_array;
@@ -883,86 +771,59 @@ sub DoAwards
 			keyname='awards_d_date' AND NOT ISNULL(d_winner_id);
 		");
 
+	&doQuery("DROP TEMPORARY TABLE hlstats_award_totals");
 	print "done\n";
 }
 
 sub DoRibbons
 {
 	print "++ Processing ribbons... ";
-	
-	my $result = &doQuery("SELECT `code` FROM `hlstats_Games`;");
-	while( my($game) = $result->fetchrow_array ) {
 
-		&execNonQuery("DELETE FROM hlstats_Players_Ribbons WHERE game='".&quoteSQL($game)."';");
-		
-		$result2 = &doQuery("
-			SELECT
-				`ribbonId`,
-				`awardCode`,
-				`awardCount`,
-				`special`
-			FROM
-				`hlstats_Ribbons`
-			WHERE
-				game='".&quoteSQL($game)."' AND
-				(special=0 OR special=2);
-			");
-		while ( my($ribbonid, $code, $count, $special) = $result2->fetchrow_array ) {
-			# scan players for each ribbon ID
-			if ($special==2) {
-			# connection time
-				$result3 = &doQuery("
-					SELECT
-						playerId,
-						(connection_time/3600) AS CNT
-					FROM
-						hlstats_Players
-					WHERE
-						game='".&quoteSQL($game)."' 
-						AND hlstats_Players.hideranking=0
-						AND (connection_time/3600)>=".$count."
-					");
-			} else {
-				# awards ribbons
-				$having = "CNT>=".$count;
-				$result3 = &doQuery("
-					SELECT
-						hlstats_Players_Awards.playerId,
-						COUNT(hlstats_Players_Awards.playerId) AS CNT
-					FROM
-						hlstats_Players_Awards
-					INNER JOIN
-						hlstats_Awards
-					ON
-						(hlstats_Awards.awardId=hlstats_Players_Awards.awardId AND
-						hlstats_Awards.game=hlstats_Players_Awards.game)
-					INNER JOIN
-						hlstats_Players
-					ON
-						hlstats_Players.playerId = hlstats_Players_Awards.playerId
-						AND hlstats_Players.hideranking=0
-					WHERE
-						hlstats_Players_Awards.game='".&quoteSQL($game)."' AND
-						hlstats_Awards.code='".$code."' AND
-						hlstats_Awards.awardType<>'V'
-					GROUP BY
-						hlstats_Players_Awards.playerId    	
-					HAVING
-						".$having."  
-					");
-			}
-
-			while (my($playerid, $cnt) = $result3->fetchrow_array) {
-				&execNonQuery("
-					INSERT INTO hlstats_Players_Ribbons
-						(playerId, ribbonId, game)
-					VALUES
-						(".$playerid.",".$ribbonid.",'".&quoteSQL($game)."')
-					");  
-			}
-		}  
-
-	}
+	# Serialize rebuilds and recover staging/old tables left by an interrupted run.
+	# Use checked queries throughout: a failed build must never publish partial rows.
+	# Do not use the reconnecting query helpers: reconnecting would lose our lock.
+	local $db_conn->{RaiseError} = 1;
+	local $db_conn->{mysql_auto_reconnect} = 0;
+	my $lock = 'hlstats:ribbons:' . $db_conn->selectrow_array("SELECT MD5(DATABASE())");
+	my ($locked) = $db_conn->selectrow_array("SELECT GET_LOCK(?, 0)", undef, $lock);
+	die "Another ribbon rebuild is running\n" unless $locked;
+	$db_conn->do("DROP TABLE IF EXISTS hlstats_Players_Ribbons_build, hlstats_Players_Ribbons_old");
+	$db_conn->do("CREATE TABLE hlstats_Players_Ribbons_build LIKE hlstats_Players_Ribbons");
+	# The old loop left rows for games absent from hlstats_Games untouched.
+	$db_conn->do("
+		INSERT INTO hlstats_Players_Ribbons_build (playerId, ribbonId, game)
+		SELECT pr.playerId, pr.ribbonId, pr.game FROM hlstats_Players_Ribbons pr
+		LEFT JOIN hlstats_Games g ON g.code=pr.game WHERE g.code IS NULL
+	");
+	$db_conn->do("
+		CREATE TEMPORARY TABLE hlstats_ribbon_counts AS
+		SELECT pa.game, a.code, pa.playerId, COUNT(*) AS occurrences
+		FROM hlstats_Players_Awards pa
+		INNER JOIN hlstats_Awards a ON a.awardId=pa.awardId AND a.game=pa.game
+		INNER JOIN hlstats_Players p ON p.playerId=pa.playerId AND p.hideranking=0
+		INNER JOIN hlstats_Games g ON g.code=pa.game
+		WHERE a.awardType<>'V' GROUP BY pa.game, a.code, pa.playerId
+	");
+	$db_conn->do("
+		INSERT INTO hlstats_Players_Ribbons_build (playerId, ribbonId, game)
+		SELECT c.playerId, r.ribbonId, r.game FROM hlstats_ribbon_counts c
+		INNER JOIN hlstats_Ribbons r ON r.game=c.game AND r.awardCode=c.code
+			AND r.special=0 AND c.occurrences>=r.awardCount
+	");
+	$db_conn->do("
+		INSERT INTO hlstats_Players_Ribbons_build (playerId, ribbonId, game)
+		SELECT p.playerId, r.ribbonId, r.game FROM hlstats_Players p
+		INNER JOIN hlstats_Ribbons r ON r.game=p.game AND r.special=2
+			AND (p.connection_time/3600)>=r.awardCount
+		INNER JOIN hlstats_Games g ON g.code=r.game WHERE p.hideranking=0
+	");
+	# MyISAM cannot transact DELETE + INSERT. Readers see the complete old or new
+	# table through this single atomic rename; no engine/schema migration is needed.
+	$db_conn->do("RENAME TABLE hlstats_Players_Ribbons TO hlstats_Players_Ribbons_old,
+		hlstats_Players_Ribbons_build TO hlstats_Players_Ribbons");
+	$db_conn->do("DROP TABLE hlstats_Players_Ribbons_old");
+	$db_conn->do("DROP TEMPORARY TABLE hlstats_ribbon_counts");
+	$db_conn->do("SELECT RELEASE_LOCK(?)", undef, $lock);
 	print "done\n";
 }
 
@@ -1252,46 +1113,45 @@ sub DoClans
 
 sub DoPruning
 {
-	$result = &doQuery("SELECT `value` FROM hlstats_Options WHERE keyname='DeleteDays'");
-	my ($g_deletedays) = $result->fetchrow_array;
-	
-	print "++ Cleaning up database: deleting events older than $g_deletedays days... ";
-	
-	foreach $eventTable (keys(%g_eventTables))
-	{
-		&execNonQuery("
-			DELETE FROM
-					hlstats_Events_$eventTable
-			WHERE
-					eventTime < DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL $g_deletedays DAY)
-			");
+	# Freeze all cutoffs once: a long backlog must not advance the expiry window.
+	# Pruning precedes awards, including historical --date/--numdays requests.
+	# Keep the boundary day for DATE-valued player history as well as event times.
+	my $event_cutoff = "DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL value DAY)";
+	if ($opt_awards) {
+		$event_cutoff = "LEAST($event_cutoff, DATE_SUB($date_base, INTERVAL $opt_numdays DAY))";
 	}
-	
-	print "done\n++ Cleaning up database: deleting player history older than $g_deletedays days... ";
-	&execNonQuery("
-		DELETE FROM
-			hlstats_Players_History
-		WHERE
-			eventTime < DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL $g_deletedays DAY)
+	my $cutoffs = &doQuery("
+		SELECT $event_cutoff, UNIX_TIMESTAMP() - 172800,
+			UNIX_TIMESTAMP(CURRENT_TIMESTAMP() - INTERVAL 1 YEAR)
+		FROM hlstats_Options WHERE keyname='DeleteDays'
 	");
-	
-	print "done\n++ Cleaning up database: deleting stale trend samples... ";
-	&execNonQuery("
-		DELETE FROM
-			hlstats_Trend
-		WHERE
-			timestamp < (UNIX_TIMESTAMP() - 172800)
-	");
-    
-	print "done\n++ Cleaning up database: deleting server load history older than one year... ";
-	&execNonQuery("
-        DELETE FROM
-            hlstats_server_load
-        WHERE
-            timestamp < (UNIX_TIMESTAMP(CURRENT_TIMESTAMP() - INTERVAL 1 YEAR))
-	");
-    
-	print "done\n";
+	my ($events_before, $trend_before, $load_before) = $cutoffs->fetchrow_array;
+	my @tables = (
+		(map { ["hlstats_Events_$_", "eventTime", $events_before] } sort keys %g_eventTables),
+		["hlstats_Players_History", "eventTime", $events_before],
+		["hlstats_Trend", "timestamp", $trend_before],
+		["hlstats_server_load", "timestamp", $load_before]
+	);
+
+	# Each statement releases MyISAM's write lock. Yield between full batches
+	# so ingestion can run; the time-leading indexes avoid repeated table scans.
+	my $batch_size = 1000;
+	foreach my $entry (@tables) {
+		my ($table, $column, $cutoff) = @$entry;
+		my $quoted_cutoff = $db_conn->quote($cutoff);
+		print "++ Cleaning up $table: deleting $column < $quoted_cutoff... ";
+		my $deleted;
+		do {
+			my $batch = &doQuery("
+				DELETE FROM $table WHERE $column < $quoted_cutoff
+				ORDER BY $column LIMIT $batch_size
+			");
+			$deleted = $batch->rows;
+			$batch->finish;
+			select(undef, undef, undef, 0.01) if ($deleted == $batch_size);
+		} while ($deleted == $batch_size);
+		print "done\n";
+	}
 }
 
 sub DoOptimize

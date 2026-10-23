@@ -102,28 +102,33 @@ For support and installation notes visit http://www.hlxcommunity.com
 	
 	$result = $db->query("
 		SELECT
-			hlstats_Events_Frags.killerId,
+			f.killerId,
 			hlstats_Players.country,
 			hlstats_Players.flag,
 			hlstats_Players.lastName AS killerName,
-			COUNT(hlstats_Events_Frags.weapon) AS frags,
-			SUM(hlstats_Events_Frags.headshot=1) as headshots,
-			IFNULL(SUM(hlstats_Events_Frags.headshot=1) / Count(hlstats_Events_Frags.weapon), '-') AS hpk
+			f.frags,
+			f.headshots,
+			IFNULL(f.headshots / f.frags, '-') AS hpk
 		FROM
-			hlstats_Events_Frags,
-			hlstats_Players
+			(SELECT killerId, COUNT(*) AS frags, SUM(headshot=1) AS headshots
+			 FROM hlstats_Events_Frags WHERE weapon='$weapon' GROUP BY killerId) f
+		JOIN hlstats_Players ON hlstats_Players.playerId = f.killerId
 		WHERE
-			hlstats_Players.playerId = hlstats_Events_Frags.killerId
-			AND hlstats_Events_Frags.weapon='$weapon'
-			AND hlstats_Players.game='$game'
+			hlstats_Players.game='$game'
 			AND hlstats_Players.hideranking<>'1'
-		GROUP BY
-			hlstats_Events_Frags.killerId
 		ORDER BY
 			$table->sort $table->sortorder,
 			$table->sort2 $table->sortorder
 		LIMIT $table->startitem,$table->numperpage
 	");
 
-  $table->draw($result, 25, 100);
+	$resultCount = $db->query("
+		SELECT COUNT(DISTINCT f.killerId)
+		FROM hlstats_Events_Frags f
+		JOIN hlstats_Players p ON p.playerId = f.killerId
+		WHERE f.weapon='$weapon' AND p.game='$game' AND p.hideranking<>1
+	");
+	list($numitems) = $db->fetch_row($resultCount);
+
+	$table->draw($result, $numitems, 100);
 ?>
