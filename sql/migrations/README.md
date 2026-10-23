@@ -21,10 +21,11 @@ There are two upgrade generations; they must not be mixed:
 | Order | Migration | Effect |
 | --- | --- | --- |
 | 1 | `2026_10_23_1000_query_indexes.sql` | Event/profile lookup and graph time-order indexes |
-| 2 | `2026_10_23_1012_retained_dimensions.sql` | Replace Frags map/weapon prefixes with covering dimension indexes |
-| 3 | `2026_10_23_1030_player_ranking.sql` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
-| 4 | `2026_10_23_1030_search_ip_index.sql` | Covering IP-prefix/player lookup for connection searches and resolver |
-| 5 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
+| 2 | `2026_10_23_1005_chat_pagination.sql` | Cover global chat's per-server date/id candidate prefixes; retain the compact server key for fast legacy totals (which may include orphaned-player messages) |
+| 3 | `2026_10_23_1012_retained_dimensions.sql` | Replace Frags map/weapon prefixes with covering dimension indexes |
+| 4 | `2026_10_23_1030_player_ranking.sql` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
+| 5 | `2026_10_23_1030_search_ip_index.sql` | Covering IP-prefix/player lookup for connection searches and resolver |
+| 6 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
 
 Before each deployment:
 
