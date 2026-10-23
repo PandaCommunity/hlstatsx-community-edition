@@ -21,7 +21,9 @@ There are two upgrade generations; they must not be mixed:
 | Order | Migration | Effect |
 | --- | --- | --- |
 | 1 | `2026_10_23_1000_query_indexes.sql` | Event/profile lookup and graph time-order indexes |
-| 2 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
+| 2 | `2026_10_23_1012_retained_dimensions.sql` | Replace Frags map/weapon prefixes with covering dimension indexes |
+| 3 | `2026_10_23_1030_search_ip_index.sql` | Covering IP-prefix/player lookup for connection searches and resolver |
+| 4 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
 
 Before each deployment:
 
@@ -85,6 +87,30 @@ boundary DATE history row. Prune-only runs retain the original datetime comparis
 for DATE history: a cutoff at noon expires that day's midnight history row.
 Trend's two-day and server load's one-year retention policies/keys are unchanged.
 Global OPTIMIZE behavior is unchanged and can still lock tables independently.
+
+### Retained map/weapon dimensions (PAN-18)
+
+The second migration replaces two indexes, rather than adding redundant candidates.
+The full dimension, killer, headshot and server keys cover request-local leaderboard
+aggregation and server-game totals. They do not introduce lifetime counters, cached
+summaries, expiry jobs, or per-frag application writes. Player/server lookup keys
+remain unchanged. Leaderboards still aggregate and sort the matching retained
+events before LIMIT; very popular dimensions are not constant-time lookups.
+
+A warm-cache MariaDB 10.11/MyISAM benchmark used 600,000 synthetic retained frags,
+20,000 players, 40 servers and four games, including popular dimensions (~150,000
+rows), selective dimensions (~30,000), and colliding map/weapon prefixes. Median
+of five ANALYZE executions: popular map leaderboard 190 → 55 ms, weapon 204 → 65 ms
+with request-local grouping before the player join; server-game totals 265 → 135 ms
+and 303 → 128 ms. Full single-column keys alone did not improve popular queries.
+Three-column covering keys improved leaderboards but did not cover server totals,
+which is why the chosen keys also include serverId.
+
+Total Frags index space grew from 31.93 to 38.93 MiB on that fixture. Median append
+time for 20 batches of 1,000 rows grew from 907 to 1,146 ms (~26%); this is a short
+synthetic batch benchmark, not a production throughput guarantee. Benchmark your
+own data and ingestion workload before adopting the migration. Prefix-heavy
+synthetic data exaggerates some selectivity gains; no concurrent-load claim is made.
 
 ## Adding a migration
 

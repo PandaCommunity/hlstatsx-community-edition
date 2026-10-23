@@ -83,31 +83,32 @@ For support and installation notes visit http://www.hlxcommunity.com
 	
 	$result = $db->query("
 		SELECT
-			hlstats_Events_Frags.killerId,
+			f.killerId,
 			hlstats_Players.lastName AS killerName,
 			hlstats_Players.flag as flag,
-			COUNT(hlstats_Events_Frags.map) AS frags,
-			SUM(hlstats_Events_Frags.headshot=1) as headshots,
-			IFNULL(SUM(hlstats_Events_Frags.headshot=1) / Count(hlstats_Events_Frags.map), '-') AS hpk
+			f.frags,
+			f.headshots,
+			IFNULL(f.headshots / f.frags, '-') AS hpk
 		FROM
-			hlstats_Events_Frags,
-			hlstats_Players		
+			(SELECT killerId, COUNT(*) AS frags, SUM(headshot=1) AS headshots
+			 FROM hlstats_Events_Frags WHERE map='$map' GROUP BY killerId) f
+		JOIN hlstats_Players ON hlstats_Players.playerId = f.killerId
 		WHERE
-			hlstats_Players.playerId = hlstats_Events_Frags.killerId
-			AND hlstats_Events_Frags.map='$map'
-			AND hlstats_Players.game='$game'
+			hlstats_Players.game='$game'
 			AND hlstats_Players.hideranking<>'1'
-		GROUP BY
-			hlstats_Events_Frags.killerId
 		ORDER BY
 			$table->sort $table->sortorder,
 			$table->sort2 $table->sortorder
 		LIMIT $table->startitem,$table->numperpage
 	");
 	
+	// Page counts follow visible players; headline totals still follow server game.
 	$resultCount = $db->query("
 		SELECT
-			COUNT(DISTINCT hlstats_Events_Frags.killerId),
+			(SELECT COUNT(DISTINCT f.killerId)
+			 FROM hlstats_Events_Frags f
+			 JOIN hlstats_Players p ON p.playerId = f.killerId
+			 WHERE f.map='$map' AND p.game='$game' AND p.hideranking<>1),
 			SUM(hlstats_Events_Frags.map='$map')
 		FROM
 			hlstats_Events_Frags,
