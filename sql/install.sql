@@ -2186,6 +2186,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Chat` (
   `message` varchar(128) NOT NULL default '',
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
+  KEY `serverId` (`serverId`),
   KEY `idx_chat_server_time` (`serverId`,`eventTime`,`id`,`playerId`),
   KEY `idx_player_time` (`playerId`,`eventTime`),
   FULLTEXT KEY `message` (`message`)

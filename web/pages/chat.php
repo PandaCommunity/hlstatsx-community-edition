@@ -145,8 +145,16 @@
 		: '0 = 1';
 	$playerExists = "EXISTS (SELECT 1 FROM hlstats_Players
 		WHERE hlstats_Players.playerId = hlstats_Events_Chat.playerId)";
+	// Preserve fast legacy totals: orphaned-player messages may contribute to
+	// page links, even though candidate selection excludes them from display.
+	// The Servers join retains compact serverId index lookups for this count.
+	$countWhere = "hlstats_Servers.game='" . $db->escape($checkGame) . "'";
+	if ($showserver != 0) {
+		$countWhere .= " AND hlstats_Events_Chat.serverId={$showserver}";
+	}
 	$sqlCount = "SELECT count(*) FROM hlstats_Events_Chat
-		WHERE {$whereclause} AND {$playerExists} {$whereclause2} {$delaySql}";
+		INNER JOIN hlstats_Servers ON hlstats_Servers.serverId = hlstats_Events_Chat.serverId
+		WHERE {$countWhere} {$whereclause2} {$delaySql}";
 	$db->query($sqlCount);
 	list($numitems) = $db->fetch_row();
 	$db->free_result();
