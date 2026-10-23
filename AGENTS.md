@@ -2,9 +2,10 @@
 
 ## Maintenance scope
 
-- Most work here is bug fixes and adapting the codebase to newer PHP versions.
+- This is a maintenance-only fork of a very old codebase, focused on bug fixes and adapting it to newer PHP versions.
 - Target PHP 8.5+ only. Do not add compatibility branches for older PHP versions.
 - Keep fixes focused; avoid unrelated refactoring or expanding test infrastructure.
+- Legacy integrations are not automatically maintenance targets. If maintenance work touches or requires changes to an old integration (for example, AMX Mod X / AMXX or Beetle's Mod / BEETLE), pause that portion of the work, explain why it is involved, and ask whether it is still relevant and should be maintained before proceeding. Do not assume its presence in the repository requires fixing, modernizing, or preserving support for it, and do not remove it without approval.
 
 ## Verification
 

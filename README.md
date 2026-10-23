@@ -14,7 +14,9 @@ a PHP frontend.
 
 ### Maintenance and contributions
 
-Work on this codebase primarily focuses on bug fixes and adapting it to newer PHP versions. The current target is **PHP 8.5+ only**; compatibility with older PHP versions is not maintained.
+This is a **maintenance-only fork** of a very old codebase, focused on bug fixes and adapting it to newer PHP versions. The current target is **PHP 8.5+ only**; compatibility with older PHP versions is not maintained.
+
+Legacy integrations included in the repository are not automatically maintenance targets. When maintenance work touches or requires changes to an old integration, such as AMX Mod X (AMXX) or Beetle's Mod (BEETLE), pause that portion of the work and ask the maintainer whether the integration is still relevant and whether to proceed. Explain why it is involved rather than assuming every inherited integration must be fixed, modernized, or kept supported. Removal also requires maintainer approval.
 
 Prefer focused fixes and case-by-case manual verification of the affected behavior. Describe what you checked when submitting a change. Do not add permanent tests or expand `tests/` unless explicitly requested; temporary verification scripts are fine, but should be removed afterward.
 
