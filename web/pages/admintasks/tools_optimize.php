@@ -43,6 +43,17 @@ For support and installation notes visit http://www.hlxcommunity.com
 	if ($auth->userdata["acclevel"] < 100) {
         die ("Access denied!");
 	}
+
+	if (!isset($_POST['confirm'])) {
+?>
+<form method="post">
+	<?php echo csrf_input(); ?>
+	<p>Optimize and analyze all database tables?</p>
+	<button type="submit" name="confirm" value="1" class="submit">Optimize Database</button>
+</form>
+<?php
+		return;
+	}
 ?>
 
 &nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat"><b>&nbsp;<?php echo $task->title; ?></b><p>

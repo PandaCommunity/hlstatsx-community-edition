@@ -40,6 +40,24 @@ if (!defined('IN_HLSTATS')) {
 	die('Do not access this file directly.');
 }
 
+function csrf_input(): string
+{
+	if (empty($_SESSION['csrf_token'])) {
+		$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+	}
+	return '<input type="hidden" name="csrf_token" value="' . $_SESSION['csrf_token'] . '">';
+}
+
+function csrf_verify_request(): void
+{
+	$token = $_POST['csrf_token'] ?? null;
+	if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !is_string($token)
+		|| empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+		http_response_code(403);
+		die('Invalid CSRF token. Reload the form and try again.');
+	}
+}
+
 function checkValidGame(string $gameStr, array $allowedGames, ?string &$retError) : bool
 {
 	// Not object and array

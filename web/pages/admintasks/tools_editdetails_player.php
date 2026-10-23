@@ -57,6 +57,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 <form method="post" action="<?php echo $g_options['scripturl'] . "?mode=admin&amp;task=$selTask&amp;id=$id&amp;" . strip_tags(SID); ?>">
 <?php
+	echo csrf_input();
 
   // get available country flag files
 	$result = $db->query("SELECT `flag`,`name` FROM hlstats_Countries ORDER BY `name`");

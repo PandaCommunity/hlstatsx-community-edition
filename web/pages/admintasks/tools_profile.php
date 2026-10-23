@@ -1,10 +1,33 @@
 <?php
 
-if($_REQUEST['reset']) {
+if (!defined('IN_HLSTATS')) {
+	die('Do not access this file directly.');
+}
+
+if (!$auth->ok || $auth->userdata['acclevel'] < 100) {
+	http_response_code(403);
+	die('Access denied!');
+}
+
+// Profiling is optional; neither table is installed by the normal schema.
+$result = $db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('hlstats_sql_web_profile', 'hlstats_sql_daemon_profile')", false);
+if (!$result || $db->num_rows($result) !== 2) {
+	echo '<p>SQL profiling is not enabled. Both web and daemon profiling tables must be installed to use this tool.</p>';
+	return;
+}
+
+if (isset($_POST['reset'])) {
 	$db->query("delete from hlstats_sql_web_profile");
 	$db->query("delete from hlstats_sql_daemon_profile");
-	die("Stats reset.");
+	echo '<p>Stats reset.</p>';
 }
+
+?>
+<form method="post">
+	<?php echo csrf_input(); ?>
+	<button type="submit" name="reset" value="1" class="submit">Reset SQL profiling statistics</button>
+</form>
+<?php
 
 print("<h3>Web performance</h3>");
 print("<p>top queries by # of times run<table><tr><td>origin</td><td>count</td><td>total time</td><td>avg time</td></tr>");

@@ -140,17 +140,7 @@ These are the actual server parameters used by the hlstats.pl script.<br>
 			parameter ASC
 	");
 	if ($db->num_rows($result) == 0) {
-		setdefaults($key);
-		$result = $db->query("
-			SELECT
-				*
-			FROM
-				hlstats_Servers_Config
-			WHERE
-				serverId=$key
-			ORDER BY
-				parameter ASC
-		");
+		echo '<p>No server settings exist. Select "Reset all settings to default!" and save to initialize them.</p>';
 	}
 	
 	$edlist->draw($result);
@@ -178,4 +168,3 @@ These are the actual server parameters used by the hlstats.pl script.<br>
   <input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

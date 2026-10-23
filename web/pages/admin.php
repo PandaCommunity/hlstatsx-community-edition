@@ -40,6 +40,15 @@ if (!defined('IN_HLSTATS')) {
     die('Do not access this file directly.');
 }
 
+header('Cache-Control: no-store');
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+	csrf_verify_request();
+} elseif ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+	header('Allow: GET, POST');
+	http_response_code(405);
+	return;
+}
+
 global $db;
 
 if (empty($game)) {
@@ -92,6 +101,8 @@ class Auth
 
 			if ($this->checkPass() == true) {
 				// if we have success, save it in this users SESSION
+				session_regenerate_id(true);
+				unset($_SESSION['csrf_token']);
 				$_SESSION['username'] = $this->username;
 				$_SESSION['password'] = $this->password;
 				$_SESSION['authsessionStart'] = time();
@@ -1000,16 +1011,8 @@ if ($auth->ok === false) {
 	return;
 }
 
-pageHeader(array('Admin'), array('Admin' => ''));
-
 $selTask = isset($_GET['task']) ? valid_request($_GET['task'], false) : '';
 $selGame = isset($_GET['game']) ? valid_request($_GET['game'], false) : '';
-?>
-
-<table width="100%" align="center" border="0" cellspacing="0" cellpadding="0">
-
-<tr valign="top">
-	<td><?php
 
 // General Settings
 $admintasks['options'] = new AdminTask('HLstatsX:CE Settings', 80);
@@ -1040,6 +1043,7 @@ $admintasks['tools_editdetails'] = new AdminTask('Edit Player or Clan Details', 
 $admintasks['tools_adminevents'] = new AdminTask('Admin-Event History', 80, 'tool', 'View event history of logged Rcon commands and Admin Mod messages.');
 $admintasks['tools_ipstats'] = new AdminTask('Host Statistics', 80, 'tool', 'See which ISPs your players are using.');
 $admintasks['tools_optimize'] = new AdminTask('Optimize Database', 100, 'tool', 'This operation tells the MySQL server to clean up the database tables, optimizing them for better performance. It is recommended that you run this at least once a month.');
+$admintasks['tools_profile'] = new AdminTask('SQL Profiling', 100, 'tool', 'View or reset optional SQL profiling statistics.');
 //$admintasks['tools_synchronize'] = new AdminTask('Synchronize Statistics', 80, 'tool', 'Sychronize all players with the offical global ELstatsNEO banlist with catched VAC cheaters.');
 $admintasks['tools_resetdbcollations'] = new AdminTask('Reset All DB Collations to UTF8', 100, 'tool', 'Reset DB Collations to UTF-8 if you receive collation errors after an upgrade from another HLstats(X)-based system.');
 
@@ -1054,6 +1058,21 @@ $admintasks['tools_reset_2'] = new AdminTask('Clean up Statistics', 100, 'tool',
 // Game Settings Tools
 $admintasks['tools_settings_copy'] = new AdminTask('Duplicate Game settings', 80, 'tool', 'Duplicate a whole game settings tree to split servers of same gametype', 'settingstool');
 
+if (isset($admintasks[$selTask]) && $auth->userdata['acclevel'] < $admintasks[$selTask]->acclevel) {
+	http_response_code(403);
+	die('Access denied!');
+}
+
+pageHeader(array('Admin'), array('Admin' => ''));
+
+// Header-only submissions must not trigger task handlers that act on any POST.
+unset($_POST['csrf_token'], $_POST['js'], $_POST['stylesheet']);
+?>
+
+<table width="100%" align="center" border="0" cellspacing="0" cellpadding="0">
+
+<tr valign="top">
+	<td><?php
 
 // Show Tool
 if (!empty($admintasks[$selTask]) && ($admintasks[$selTask]->type == 'tool' || $admintasks[$selTask]->type == 'subtool'))
@@ -1088,6 +1107,7 @@ else
 &nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin" name="<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br />
 
 <form method="post" action="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;task=<?php echo $code; ?>#<?php echo $code; ?>">
+<?php echo csrf_input(); ?>
 
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
 
@@ -1146,6 +1166,7 @@ else
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>" name="<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br />
 
 <form method="post" name="<?php echo $code; ?>form" action="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>&task=<?php echo $code; ?>#<?php echo $code; ?>">
+<?php echo csrf_input(); ?>
 
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
 

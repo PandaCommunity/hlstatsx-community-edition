@@ -157,6 +157,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>        
 
 <form method="POST">
+<?php echo csrf_input(); ?>
 <table width="60%" align="center" border=0 cellspacing=0 cellpadding=0 class="border">
 
 <tr>
