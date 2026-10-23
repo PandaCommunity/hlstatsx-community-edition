@@ -25,12 +25,16 @@
 
     // Filter game input
     $game = filter_input(INPUT_GET, 'game', FILTER_UNSAFE_RAW);
+    if (!is_string($game)) {
+        print 'Invalid game parameter.';
+        exit;
+    }
 
     $gameRepo = $container->get(\Repository\GameRepository::class);
     $allowedGames = $gameRepo->getGameCodes();
 
     $retError = "";
-    if (!checkValidGame($game, $allowedGames, $retError)) {
+    if (!checkValidGame($game, $allowedGames ?? [], $retError)) {
         print $retError;
         exit;
     }

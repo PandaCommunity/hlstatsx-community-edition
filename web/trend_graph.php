@@ -88,7 +88,6 @@
     $skillArr = array();
     $skillChange = array();
     $dateArr = array();
-    $lastTime = 0;
 
     $rowCount = count($history);
     for ($i = 1; $i <= $rowCount; $i++) {
@@ -101,10 +100,6 @@
         if ($i == 1 || $i == round($rowCount / 2) || $i == $rowCount) {
             $newDate = date("M-j", $row['ts']);
             array_unshift($dateArr, $newDate);
-
-            if ($i == $rowCount) {
-                $lastTime = $row['ts'];
-            }
 
             continue;
         }
@@ -130,7 +125,7 @@
         $params = [
             'bgcolor' => $bgColor,
             'color' => $colorText,
-            'last_time' => $lastTime,
+            'history' => $history,
         ];
 
         $cache_key = md5(json_encode($params, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));

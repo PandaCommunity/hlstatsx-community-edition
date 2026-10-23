@@ -318,9 +318,9 @@ if ($server_data['addr'] != '')  {
 	if ($map_image == 1)
 	{
 		$mapimg = getImage("/games/{$game}/maps/{$server_data['act_map']}");
-		if (!file_exists($mapimg['path'])) {
+		if (!$mapimg) {
 			$mapimg = getImage("/games/{$game}/maps/default");
-			if (!file_exists($mapimg['path'])) {
+			if (!$mapimg) {
 				$mapimg = getImage("/nomap");
 			}
 		}
@@ -449,7 +449,8 @@ if ($server_data['addr'] != '')  {
 					hits, 
 					connected, 
 					skill_change, 
-					cli_flag
+					cli_flag,
+					cli_country
 				FROM 
 					hlstats_Livestats 
 				WHERE 
@@ -473,7 +474,7 @@ if ($server_data['addr'] != '')  {
 			$thisteam = $teamdata[$curteam];
 			$teamcolor = 'background:'.$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'];
 			$bordercolor = 'background:'.$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'].';border-top:1px '.$thisteam['playerlist_color'].' solid';
-			$team_display_name  = htmlspecialchars($thisteam['name']);
+			$team_display_name  = htmlspecialchars($thisteam['name'] ?? '');
 
 			while (isset($playerdata[$curteam][$j]))
 			{

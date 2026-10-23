@@ -12,8 +12,8 @@
 	{
 		$template = PAGE_PATH."/templates/teamspeak/$tpl";
 
-		if($fp = @fopen($template.".".html, "r"))
-		  $tpl = @fread($fp, filesize($template.".".html));
+		if($fp = @fopen($template . '.html', "r"))
+		  $tpl = @fread($fp, filesize($template . '.html'));
 
 		foreach($array as $value => $code)
 		{
@@ -24,7 +24,7 @@
 
 
 
-  if (function_exists(fopen))
+  if (function_exists('fopen'))
   {
     $db->query("SELECT addr, queryPort, UDPPort FROM hlstats_Servers_VoiceComm WHERE serverId=$tsId");
     $s = $db->fetch_array();

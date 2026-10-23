@@ -112,7 +112,7 @@ class DB_mysql
 	{
 		if ( !$query_id )
 		{
-			$result = $this->last_result;
+			$query_id = $this->last_result;
 		}
 		if ( $query_id )
 		{

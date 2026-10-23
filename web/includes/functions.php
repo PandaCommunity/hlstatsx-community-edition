@@ -151,6 +151,10 @@ function getFlag($flag, $type='url')
  */
 function valid_request($str, $numeric = false)
 {
+	if (!is_scalar($str)) {
+		return $numeric ? -1 : '';
+	}
+	$str = (string) $str;
 	$search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/\\\\@{}дцьДЦЬ ]/");
 	$replace_pattern = array('');
 	$str = preg_replace($search_pattern, $replace_pattern, $str);
@@ -459,7 +463,7 @@ function getLink($url, $type = 'http://', $target = '_blank')
 
 	$uri=sprintf("%s%s%s", $urld['path'], $urld['query'], $urld['fragment']);
 	$host_uri=$urld['host'] . $uri;
-	return sprintf('<a href="%s://%s%s" target="%s">%s</a>',$urld['scheme'], $urld['host'], $uri, $target, htmlspecialchars($host_uri, ENT_COMPAT));
+	return sprintf('<a href="%s" target="%s">%s</a>', htmlspecialchars($urld['scheme'] . '://' . $host_uri, ENT_QUOTES), htmlspecialchars($target, ENT_QUOTES), htmlspecialchars($host_uri, ENT_COMPAT));
 }
 
 /**
