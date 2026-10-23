@@ -85,8 +85,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 	}
 
 	$width = 500;
-	if (isset($_GET['width']) && is_numeric($_GET['width'])) {
-		$width = valid_request($_GET['width'], true);
+	if (isset($_GET['width'])) {
+		$width = filter_var($_GET['width'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 100, 'max_range' => 2000]]);
 	}
 
 	$server_id = 1;
@@ -95,8 +95,15 @@ For support and installation notes visit http://www.hlxcommunity.com
 	}
 
 	$height = 125;
-	if (isset($_GET['height']) && is_numeric($_GET['height'])) {
-		$height = valid_request($_GET['height'], true);
+	if (isset($_GET['height'])) {
+		$height = filter_var($_GET['height'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 60, 'max_range' => 1000]]);
+	}
+
+	// Leave room for the largest margins (70 x 30) and cap GD allocation at two million pixels.
+	if ($width === false || $height === false) {
+		http_response_code(400);
+		header('Content-Type: text/plain; charset=UTF-8');
+		exit('Graph dimensions must be integers: width 100-2000, height 60-1000.');
 	}
 
 	$player = 1;
@@ -133,12 +140,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 	$bg_color = array('red' => 171, 'green' => 204, 'blue' => 214);
 	if (isset($_GET['bgcolor']) && is_string($_GET['bgcolor'])) {
-		$bg_color = hex2rgb(valid_request($_GET['bgcolor'], false));
+		$bg_color = tryHexToRgb($_GET['bgcolor']) ?? $bg_color;
 	}
 
 	$color = array('red' => 255, 'green' => 255, 'blue' => 255);
 	if (isset($_GET['color']) && is_string($_GET['color'])) {
-		$color = hex2rgb(valid_request($_GET['color'], false));
+		$color = tryHexToRgb($_GET['color']) ?? $color;
 	}
 
 	$bg_id = $bg_color['red'] + $bg_color['green'] + $bg_color['blue'];
@@ -465,8 +472,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 		$str_width = (imagefontwidth(1) * strlen($str)) + 2;
 		imagestring($image, 1, $width - $indent_x[1] - $str_width, $indent_y[0] - 11, $str, $font_color);
 	}
-
-	imageTrueColorToPalette($image, 0, 65535);
 
 	// $bar_type=2;
 

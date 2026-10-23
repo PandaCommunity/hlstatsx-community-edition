@@ -180,18 +180,21 @@ For support and installation notes visit http://www.hlxcommunity.com
 // END TSGK MAP TEXT
         
 		if ($make_grid > 0) {
-			$step_diff  = 0;
-			$step_width = 0;
-			while ($step_diff < 15) {
-				$step_width++;
-				if ((int) $max_pos_y[$max_index] % $step_width == 0) {
-					$steps = $max_pos_y[$max_index] / $step_width;
-					if ($steps > 0)
-						$step_diff = ($bounds['height']-$bounds['indent_y'][0]-$bounds['indent_y'][1]) / $steps;
-					else
-						$step_diff = 15;
-				} else {
-					$step_diff = 0;
+			$plot_height = $bounds['height']-$bounds['indent_y'][0]-$bounds['indent_y'][1];
+			$maximum = $max_pos_y[$max_index];
+			$integer_maximum = (int) $maximum;
+			$step_width = max(1, $maximum);
+			$steps = $maximum / $step_width;
+			// Search possible grid counts, not every value up to a potentially huge maximum.
+			// Descending counts retain the smallest divisor with at least 15px spacing.
+			for ($grid_count = (int) floor($plot_height / 15); $grid_count >= 1; $grid_count--) {
+				if ($integer_maximum > 0 && $integer_maximum % $grid_count == 0) {
+					$candidate = intdiv($integer_maximum, $grid_count);
+					if ($plot_height / ($maximum / $candidate) >= 15) {
+						$step_width = $candidate;
+						$steps = $maximum / $step_width;
+						break;
+					}
 				}
 			}
         
