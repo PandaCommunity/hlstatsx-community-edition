@@ -129,11 +129,14 @@ For support and installation notes visit http://www.hlxcommunity.com
 		'kpd',
 		true
 	);
-	$result = $db->query
+	// Keep recent and older members separate: the legacy count includes both.
+	$db->query
 	("
+		CREATE TEMPORARY TABLE hlstats_CountryRanking AS
 		SELECT
 			hlstats_Countries.flag,
 			hlstats_Countries.name,
+			(".$g_options['MinActivity']." > 0 AND hlstats_Players.last_event > UNIX_TIMESTAMP() - ".$g_options['MinActivity'].") AS recent,
 			COUNT(hlstats_Players.playerId) AS nummembers,
 			SUM(hlstats_Players.kills) AS kills,
 			SUM(hlstats_Players.deaths) AS deaths,
@@ -141,6 +144,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			ROUND(AVG(hlstats_Players.skill)) AS skill,
 			ROUND(AVG(hlstats_Players.last_skill_change)) AS last_skill_change,
 			ROUND(SUM(hlstats_Players.kills) / IF(SUM(hlstats_Players.deaths) = 0, 1, SUM(hlstats_Players.deaths)), 2) AS kpd,
+			SUM(activity) AS activity_sum,
 			TRUNCATE(AVG(activity), 2) AS activity
 		FROM
 			hlstats_Countries 
@@ -151,46 +155,38 @@ For support and installation notes visit http://www.hlxcommunity.com
 		WHERE
 			hlstats_Players.game = '$game'
 			AND hlstats_Players.hideranking = 0
-			AND IF(".$g_options['MinActivity']." > (UNIX_TIMESTAMP() - hlstats_Players.last_event), ((100 / ".$g_options['MinActivity'].") * (".$g_options['MinActivity']." - (UNIX_TIMESTAMP() - hlstats_Players.last_event))), -1) >= 0
 		GROUP BY
-			hlstats_Countries.flag
-		HAVING
-			activity >= 0
-			AND nummembers >= $minmembers
+			hlstats_Countries.flag, recent
+	");
+	$result = $db->query
+	("
+		SELECT * FROM hlstats_CountryRanking
+		WHERE recent = 1 AND activity >= 0 AND nummembers >= $minmembers
 		ORDER BY
 			$table->sort $table->sortorder,
 			$table->sort2 $table->sortorder,
-			hlstats_Countries.name ASC
+			name ASC
 		LIMIT
 			$table->startitem,
 			$table->numperpage
 	");
 	$resultCount = $db->query
 	("
-		SELECT
-			hlstats_Countries.flag,
-			SUM(activity) AS activity
-		FROM
-			hlstats_Countries
-		LEFT JOIN
-			hlstats_Players
-		ON
-			hlstats_Players.flag = hlstats_Countries.flag
-		WHERE
-			hlstats_Players.game = '$game'
-			AND hlstats_Players.hideranking = 0
-		GROUP BY
-			hlstats_Countries.flag
-		HAVING
-			activity >= 0
-			AND COUNT(hlstats_Players.playerId) >= $minmembers
+		SELECT COUNT(*) FROM (
+			SELECT flag FROM hlstats_CountryRanking
+			GROUP BY flag
+			HAVING SUM(activity_sum) >= 0 AND SUM(nummembers) >= $minmembers
+		) AS eligible_countries
 	");
+	list($numitems) = $db->fetch_row($resultCount);
+	$db->free_result($resultCount);
+	$db->query("DROP TEMPORARY TABLE hlstats_CountryRanking");
 ?>
 
 <div class="block">
 <?php
 	printSectionTitle('Country Rankings');
-	$table->draw($result, $db->num_rows($resultCount), 95);
+	$table->draw($result, $numitems, 95);
 ?><br /><br />
 	<div class="subblock">
 		<div style="float:left;">
