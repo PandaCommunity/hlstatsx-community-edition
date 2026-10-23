@@ -2,7 +2,7 @@
 
 -- This file is only needed for new installations.
 
-SET @DBVERSION="80";
+SET @DBVERSION="82";
 SET @VERSION="1.7.0";
 
 -- --------------------------------------------------------
@@ -2187,6 +2187,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Chat` (
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
   KEY `serverId` (`serverId`),
+  KEY `idx_player_time` (`playerId`,`eventTime`),
   FULLTEXT KEY `message` (`message`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2222,7 +2223,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Disconnects` (
   `serverId` int(10) unsigned NOT NULL default '0',
   `map` varchar(64) NOT NULL default '',
   `playerId` int(10) unsigned NOT NULL default '0',
-  PRIMARY KEY  (`id`)
+  PRIMARY KEY  (`id`),
+  KEY `playerId` (`playerId`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -2501,7 +2503,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Teamkills` (
   `pos_victim_y` MEDIUMINT default NULL,
   `pos_victim_z` MEDIUMINT default NULL,
   PRIMARY KEY  (`id`),
-  KEY `killerId` (`killerId`)
+  KEY `killerId` (`killerId`),
+  KEY `victimId` (`victimId`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -4127,7 +4130,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players` (
   KEY `skill` (`skill`),
   KEY `game` (`game`),
   KEY `kills` (`kills`),
-  KEY `hideranking` (`hideranking`)
+  KEY `hideranking` (`hideranking`),
+  KEY `game_hideranking` (`game`,`hideranking`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -4142,7 +4146,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_Awards` (
   `playerId` int(11) unsigned NOT NULL default '0',
   `count` int(11) unsigned NOT NULL default '0',
   `game` varchar(32) NOT NULL,
-  PRIMARY KEY  (`awardTime`,`awardId`,`playerId`,`game`)
+  PRIMARY KEY  (`awardTime`,`awardId`,`playerId`,`game`),
+  KEY `player_award_game` (`playerId`,`awardId`,`game`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -4168,7 +4173,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_History` (
   `death_streak` int(6) NOT NULL default '0',
   `skill_change` int(11) NOT NULL default '0',
   UNIQUE KEY `eventTime` (`eventTime`,`playerId`,`game`),
-  KEY `playerId` (`playerId`)
+  KEY `player_time` (`playerId`,`eventTime`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -4180,7 +4185,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_History` (
 CREATE TABLE IF NOT EXISTS `hlstats_Players_Ribbons` (
   `playerId` int(11) unsigned NOT NULL default '0',
   `ribbonId` int(11) unsigned NOT NULL default '0',
-  `game` varchar(32) NOT NULL
+  `game` varchar(32) NOT NULL,
+  KEY `game_player_ribbon` (`game`,`playerId`,`ribbonId`),
+  KEY `ribbon_player` (`ribbonId`,`playerId`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -6523,7 +6530,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_server_load` (
   `map` varchar(64) default NULL,
   `uptime` varchar(10) NOT NULL default '0',
   `fps` varchar(10) NOT NULL default '0',
-  KEY `server_id` (`server_id`),
+  KEY `server_timestamp` (`server_id`,`timestamp`),
   KEY `timestamp` (`timestamp`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -7620,3 +7627,13 @@ INSERT INTO `hlstats_Weapons` (`game`, `code`, `name`, `modifier`) VALUES
 ('dinodday', 'dinner', 'T-Rex Dinner', 1.70),
 ('dinodday', 'stomp', 'T-Rex Stomp', 1.70),
 ('dinodday', 'goat', 'Dilophosaurus Goat Throw', 1.90);
+
+-- Fresh installations already contain these migrations. See migrations/README.md.
+CREATE TABLE IF NOT EXISTS `hlstats_SchemaMigrations` (
+  `filename` varchar(191) NOT NULL,
+  `applied_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`filename`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `hlstats_SchemaMigrations` (`filename`) VALUES
+('2026_10_23_1000_query_indexes.sql');
