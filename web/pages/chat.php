@@ -78,17 +78,9 @@
 
 	$showserver = (int)$showserver;
 
-	$gameSafeSql = $db->escape($checkGame);
 	$gameSafeHtml = htmlspecialchars($checkGame, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 	$scriptUrlSafeHtml = eHtml($g_options['scripturl']);
 	$fullUrl = $g_options['scripturl'] . '?game=' . urlencode($checkGame);
-
-	$whereclause = "";
-	if ($showserver == 0) {
-		$whereclause = "hlstats_Servers.game='{$gameSafeSql}'";
-	} else {
-		$whereclause = "hlstats_Servers.game='{$gameSafeSql}' AND hlstats_Events_Chat.serverId={$showserver}";
-	}
 
 	$gamename = getGameNameByCode($db, $checkGame);
 	if ($gamename === false) {
@@ -136,8 +128,62 @@
 
 	$whereclause2 = buildSearchSqlSafe($db, $filter);
 
+	// Only Date is sortable on this page. Select a bounded, narrow prefix from
+	// each eligible server before merging, so other games and display columns
+	// are not scanned/sorted for every page. Offsets remain supported.
+	$serverIds = [];
+	foreach ($serversList as $server) {
+		$serverId = (int)$server['serverId'];
+		if ($showserver != 0 && $showserver != $serverId) {
+			continue;
+		}
+		$serverIds[] = $serverId;
+	}
+	// An unknown server or a server belonging to another game has no rows.
+	$whereclause = $serverIds
+		? 'hlstats_Events_Chat.serverId IN (' . implode(',', $serverIds) . ')'
+		: '0 = 1';
+	$playerExists = "EXISTS (SELECT 1 FROM hlstats_Players
+		WHERE hlstats_Players.playerId = hlstats_Events_Chat.playerId)";
+	$sqlCount = "SELECT count(*) FROM hlstats_Events_Chat
+		WHERE {$whereclause} AND {$playerExists} {$whereclause2} {$delaySql}";
+	$db->query($sqlCount);
+	list($numitems) = $db->fetch_row();
+	$db->free_result();
+
+	$candidateScopes = [$whereclause];
+	// Long searches use boolean FULLTEXT in buildSearchSqlSafe. Run that search
+	// once, not once per server; its matches still need a date sort. Short LIKE
+	// searches cannot use FULLTEXT without changing their meaning. For deep
+	// offsets, avoid merging prefixes as large as the entire matching set.
+	if (count($serverIds) > 1 && mb_strlen($filter, 'UTF-8') <= 3
+		&& ($table->startitem + $table->numperpage) * count($serverIds) < $numitems) {
+		$candidateScopes = [];
+		foreach ($serverIds as $serverId) {
+			$candidateScopes[] = "serverId = {$serverId}";
+		}
+	}
+	$candidateLimit = count($candidateScopes) === 1
+		? "{$table->startitem}, {$table->numperpage}"
+		: (string)($table->startitem + $table->numperpage);
+	$candidates = [];
+	foreach ($candidateScopes as $candidateScope) {
+		$candidates[] = "SELECT id, eventTime FROM hlstats_Events_Chat
+			WHERE {$candidateScope} AND {$playerExists}
+			{$whereclause2} {$delaySql}
+			ORDER BY eventTime {$table->sortorder}, id {$table->sortorder}
+			LIMIT {$candidateLimit}";
+	}
+	$pageSql = $candidates[0];
+	if (count($candidates) > 1) {
+		$candidateSql = '(' . implode(') UNION ALL (', $candidates) . ')';
+		$pageSql = "SELECT id, eventTime FROM ({$candidateSql}) AS candidates
+			ORDER BY eventTime {$table->sortorder}, id {$table->sortorder}
+			LIMIT {$table->startitem}, {$table->numperpage}";
+	}
+
 	$selectSql = "
-		SELECT SQL_NO_CACHE 
+		SELECT SQL_NO_CACHE
 			hlstats_Events_Chat.eventTime,
 			hlstats_Players.lastName as lastName,
 			IF(hlstats_Events_Chat.message_mode=2, CONCAT('(Team) ', hlstats_Events_Chat.message), 
@@ -147,50 +193,14 @@
 			hlstats_Players.flag,
 			hlstats_Events_Chat.map
 		FROM
-			hlstats_Events_Chat
-		INNER JOIN
-			hlstats_Players
-		ON
-			hlstats_Players.playerId = hlstats_Events_Chat.playerId
-		INNER JOIN 
-			hlstats_Servers
-		ON
-			hlstats_Servers.serverId = hlstats_Events_Chat.serverId
-		WHERE
-			$whereclause $whereclause2
-		{$delaySql}
-		ORDER BY
-			hlstats_Events_Chat.id $table->sortorder
-		LIMIT
-			$table->startitem,
-			$table->numperpage;
+			({$pageSql}) AS page
+		INNER JOIN hlstats_Events_Chat ON hlstats_Events_Chat.id = page.id
+		INNER JOIN hlstats_Players ON hlstats_Players.playerId = hlstats_Events_Chat.playerId
+		INNER JOIN hlstats_Servers ON hlstats_Servers.serverId = hlstats_Events_Chat.serverId
+		ORDER BY page.eventTime {$table->sortorder}, page.id {$table->sortorder}
 	";
 
 	$resultMsgs = $db->query($selectSql, true, false);
-
-	$sqlCount = "
-		SELECT
-			count(*)
-		FROM
-			hlstats_Events_Chat
-		INNER JOIN 
-			hlstats_Servers
-		ON
-			hlstats_Servers.serverId = hlstats_Events_Chat.serverId
-		WHERE
-			$whereclause $whereclause2
-		{$delaySql}
-	";
-
-	$db->query($sqlCount);
-
-	if ($db->num_rows() < 1) {
-		$numitems = 0;
-	} else {
-		list($numitems) = $db->fetch_row();
-	}
-
-	$db->free_result();
 
 	// Functions
 	// Old limit 50
