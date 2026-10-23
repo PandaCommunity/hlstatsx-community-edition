@@ -180,7 +180,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     
 	$db->query("
 		SELECT
-			COUNT(*)
+			COUNT(*),
+			COALESCE(SUM(headshot=1), 0)
 		FROM
 			hlstats_Events_Frags
 		LEFT JOIN hlstats_Servers ON
@@ -188,20 +189,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 		WHERE
 			hlstats_Servers.game='$game' AND killerId='$player'
 	");
-	list($realkills) = $db->fetch_row();
-
-	$db->query("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Events_Frags
-		LEFT JOIN hlstats_Servers ON
-			hlstats_Servers.serverId=hlstats_Events_Frags.serverId
-		WHERE
-			hlstats_Servers.game='$game' AND killerId='$player'
-			AND headshot=1      
-	");
-	list($realheadshots) = $db->fetch_row();
+	list($realkills, $realheadshots) = $db->fetch_row();
 
 	$result = $db->query("
 		SELECT
