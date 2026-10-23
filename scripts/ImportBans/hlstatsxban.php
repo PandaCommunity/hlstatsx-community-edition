@@ -298,6 +298,11 @@ if ($usemb)
 // HLstatsX Part
 //------------------------------
 
+// Resolve conflicts only after all providers have been read, using HLstatsX IDs.
+// An active permanent ban always takes precedence over historical unbans.
+$bannedplayers = array_unique(preg_replace('/^STEAM_[0-9]+?\:/i', '', $bannedplayers));
+$unbannedplayers = array_diff(array_unique(preg_replace('/^STEAM_[0-9]+?\:/i', '', $unbannedplayers)), $bannedplayers);
+
 if(empty($bannedplayers) && empty($unbannedplayers))
     die('[-] Nothing to change. Exiting.');
 
@@ -309,7 +314,6 @@ if(!empty($bannedplayers))
 	$bannedsteamids = "'";
 	foreach ($bannedplayers as $steamid)
 	{
-		$steamid = preg_replace('/^STEAM_[0-9]+?\:/i','',$steamid);
 		$bannedsteamids .= $steamid."','";
 	}
 	$bannedsteamids .= preg_replace('/\,\'$/','',$steamid);
@@ -321,7 +325,6 @@ if(!empty($unbannedplayers))
 	$unbannedsteamids = "'";
 	foreach ($unbannedplayers as $steamid)
 	{
-		$steamid = preg_replace('/^STEAM_[0-9]+?\:/i','',$steamid);
 		$unbannedsteamids .= $steamid."','";
 	}
 	$unbannedsteamids .= preg_replace('/\,\'$/','',$steamid);
