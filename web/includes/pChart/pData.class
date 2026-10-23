@@ -67,12 +67,12 @@
      if ($handle)
       {
        $HeaderParsed = FALSE;
-       while (!feof($handle))
+       while (($buffer = fgets($handle, 4096)) !== FALSE)
         {
-         $buffer = fgets($handle, 4096);
          $buffer = str_replace(chr(10),"",$buffer);
          $buffer = str_replace(chr(13),"",$buffer);
-         $Values = split($Delimiter,$buffer);
+         // Delimiters are regexes, as with the original split(), not CSV quoting rules.
+         $Values = preg_split('~'.str_replace('~', '\\~', $Delimiter).'~',$buffer);
 
          if ( $buffer != "" )
           {
@@ -119,16 +119,16 @@
 
    function AddPoint($Value,$Serie="Serie1",$Description="")
     {
-     if (is_array($Value) && count($Value) == 1)
-      $Value = $Value[0];
+     if (!is_array($Value))
+      $Value = array($Value);
 
      $ID = 0;
      for($i=0;$i<=count($this->Data);$i++)
-      { if(isset($this->data[$i][$Serie])) { $ID = $i+1; } }
+      { if(isset($this->Data[$i][$Serie])) { $ID = $i+1; } }
 
      if ( count($Value) == 1 )
       {
-       $this->Data[$ID][$Serie] = $Value;
+       $this->Data[$ID][$Serie] = reset($Value);
        if ( $Description != "" )
         $this->Data[$ID]["Name"] = $Description;
        elseif (!isset($this->Data[$ID]["Name"]))

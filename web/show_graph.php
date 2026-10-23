@@ -191,7 +191,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 				header('Last-Modified:' . $mod_date);
 				$image = imagecreatefrompng(IMAGE_PATH . '/progress/server_' . $width . '_' . $height . '_' . $bar_type . '_' . $game . '_' . $server_id . '_' . $bg_id . '_' . $server_load_type . '.png');
 				imagepng($image);
-				imagedestroy($image);
+				unset($image);
 				exit;
 			}
 		}
@@ -398,7 +398,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 		if ($background_img)
 			{
 				imagecopy($image, $background_img, 0, 0, 0, 0, 400, 152);
-				imagedestroy($background_img);
+				unset($background_img);
 				$drawbg = false;
 			}
 
@@ -474,7 +474,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 		$mod_date = date('D, d M Y H:i:s \G\M\T', time());
 		header('Last-Modified:'.$mod_date);
 		imagepng($image);
-		imagedestroy($image);
+		unset($image);
 		//Opera doesn't like the redirect
 		/*$mod_date = date('D, d M Y H:i:s \G\M\T', time());
 		header('Last-Modified:'.$mod_date);
@@ -483,6 +483,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 	else
 	{
 		imagepng($image);
-		imagedestroy($image);
+		unset($image);
 	}
 ?>

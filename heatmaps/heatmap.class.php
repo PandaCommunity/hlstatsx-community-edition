@@ -281,7 +281,7 @@ class Heatmap {
               }
       }
 
-			imagedestroy($brush);
+			unset($brush);
 
 			$colorarr = array();
 			$colors = array(0, 0, 255);
@@ -310,25 +310,25 @@ class Heatmap {
 			if ($mapinfo[$code][$map]['cropy2'] > 0 && $mapinfo[$code][$map]['cropy2'] > 0) {
 				$temp = imagecreatetruecolor($mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
 				imagecopy($temp, $img, 0, 0, $mapinfo[$code][$map]['cropx1'], $mapinfo[$code][$map]['cropy1'], $mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
-				imagedestroy($img);
+				unset($img);
 
 				$img = imagecreatetruecolor(imagesx($temp), imagesy($temp));
 				imagecopy($img, $temp, 0, 0, 0, 0, imagesx($temp), imagesy($temp));
-				imagedestroy($temp);
+				unset($temp);
 			}
 
 			if ($mapinfo[$code][$map]['thumbw'] > 0 && $mapinfo[$code][$map]['thumbh'] > 0) {
 				$thumb = imagecreatetruecolor(imagesx($img) * $mapinfo[$code][$map]['thumbw'], imagesy($img) * $mapinfo[$code][$map]['thumbh']);
 				imagecopyresampled($thumb, $img, 0, 0, 0, 0, imagesx($thumb), imagesy($thumb), imagesx($img), imagesy($img));
 				imagejpeg($thumb, $path . "/" . $map . "-" . $mode . "-thumb.jpg", 100);
-				imagedestroy($thumb);
+				unset($thumb);
 			}
 
 			$img = self::drawHud($img, $map,  "HLX:CE", "Total Kills", $num_kills, $firstdata);
 						
 			if (imagejpeg($img, $path . "/" . $map . "-" . $mode . ".jpg", 100)) $return = true;
 			if (imagepng($overlay, CACHE_DIR . "/$code/${map}_${timestamp}.png", 9)) $return = true;
-			imagedestroy($overlay);
+			unset($overlay);
 
 			// Clean upc cache file
 			if (isset($cache_file) && file_exists($cache_file)) {
@@ -336,7 +336,7 @@ class Heatmap {
 			}
 			
 			
-			imagedestroy($img);
+			unset($img);
 
 			return $return;
 		}
@@ -449,7 +449,7 @@ class Heatmap {
 			$i++;
 			}
 
-			imagedestroy($hud);
+			unset($hud);
 
 			show::Event("HUD", "Done...", 2);
 			return $img;
@@ -481,7 +481,7 @@ class Heatmap {
 			$resized = imagecreatetruecolor($newwidth, $newheight);
 			imagecopyresized($resized, $img, 0, 0, 0, 0, $newwidth, $newheight, imagesx($img), imagesy($img));
 
-			imagedestroy($img);
+			unset($img);
 
 			show::Event("RESIZE", "Done...", 2);
 			return $resized;
