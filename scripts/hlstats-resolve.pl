@@ -117,6 +117,10 @@ sub printEvent
 $opt_help = 0;
 $opt_version = 0;
 $opt_regroup = 0;
+$opt_batch_size = 500;
+$opt_max_batches = 0;
+$opt_after_ip = '';
+$opt_after_id = 0;
 
 $db_host = "localhost";
 $db_user = "";
@@ -144,6 +148,18 @@ Resolve player IP addresses to hostnames.
       --db-username=USERNAME      database username
       --dns-timeout=SEC           timeout DNS queries after SEC seconds  [$g_dns_timeout]
   -r, --regroup                   only re-group hostnames--don't resolve any IPs
+      --batch-size=N             IPs (or regroup rows) fetched per batch [500]
+      --max-batches=N            stop after N batches; 0 processes all [0]
+      --after-ip=IP              resume resolution after this IP (lexical order)
+      --after-id=N               resume regroup after this connection ID
+
+Resolution fills only blank hostnames; existing historical names are preserved.
+Each IP is looked up at most once per run. Failures stay blank and are retried
+on the next full run; there is no persistent DNS cache or refresh-all mode.
+Regroup changes only hostgroups, using each row's stored hostname.
+Batch checkpoints are printed only after successful updates. Resume with the
+same mode; restart without a cursor to retry failures or include earlier inserts.
+Resolution requires PAN-15's ipAddress_playerId(ipAddress,playerId) index.
 
 Long options can be abbreviated, where such abbreviation is not ambiguous.
 
@@ -191,6 +207,10 @@ GetOptions(
 	"db-password=s"		=> \$db_pass,
 	"db-username=s"		=> \$db_user,
 	"dns-timeout=i"		=> \$g_dns_timeout,
+	"batch-size=i"		=> \$opt_batch_size,
+	"max-batches=i"		=> \$opt_max_batches,
+	"after-ip=s"			=> \$opt_after_ip,
+	"after-id=i"			=> \$opt_after_id,
 	"regroup|r"			=> \$opt_regroup
 ) or die($usage);
 
@@ -199,6 +219,10 @@ if ($opt_help)
 	print $usage;
 	exit(0);
 }
+
+die "Invalid batch size, batch limit or resume cursor\n"
+	if $opt_batch_size < 1 || $opt_max_batches < 0 || $opt_after_id < 0
+	|| ($opt_regroup && $opt_after_ip ne '') || (!$opt_regroup && $opt_after_id);
 
 if ($opt_version)
 {
@@ -235,7 +259,7 @@ print "-- Connecting to MySQL database '$db_name' on '$db_host' as user '$db_use
 
 $db_conn = DBI->connect(
 	"DBI:mysql:$db_name:$db_host",
-	$db_user, $db_pass
+	$db_user, $db_pass, { RaiseError => 1, PrintError => 0 }
 ) or die ("Can't connect to MySQL database '$db_name' on '$db_host'\n" .
 	"$DBI::errstr\n");
 
@@ -248,131 +272,74 @@ print "-- DNS timeout is $g_dns_timeout seconds. Debug level is $g_debug.\n";
 
 # Main data routine
 
+my $resultHG = &queryHostGroups();
+my $batches = 0;
+my $processed = 0;
+
 if ($opt_regroup)
 {
-	my $result = &doQuery("
-		SELECT
-			id,
-			hostname
-		FROM
-			hlstats_Events_Connects
-		WHERE
-			hostname != ''
-	");
-	
-	my $total = $result->rows;
-	
-	if ($total > 0) {
-		print "\n++ Re-grouping hosts (total $total hostnames) ... ";
-	
-		my $resultHG = &queryHostGroups();
-	
-		if ($g_debug > 0)
+	# Fetch by primary key before filtering, so even an all-blank history is
+	# scanned in bounded pages. Exclude inserts beyond this run's high water mark.
+	my ($last_id) = $db_conn->selectrow_array("SELECT MAX(id) FROM hlstats_Events_Connects");
+	my $cursor = $opt_after_id;
+	while (defined($last_id) && (!$opt_max_batches || $batches < $opt_max_batches))
+	{
+		my $result = &doQuery("SELECT id, hostname FROM hlstats_Events_Connects
+			WHERE id > $cursor AND id <= $last_id ORDER BY id LIMIT $opt_batch_size");
+		last unless $result->rows;
+		while (my ($id, $hostname) = $result->fetchrow_array)
 		{
-			print "\n\n";
-		}
-		else
-		{
-			print "    ";
-		}
-	
-		my $p = 1;
-		while( my($id, $hostname) = $result->fetchrow_array )
-		{
-			my $percent = ($p / $total) * 100;
-		
-			my $hostgroup = &getHostGroup($hostname, $resultHG);
-		
-			&execNonQuery("
-				UPDATE
-					hlstats_Events_Connects
-				SET
-					hostgroup='" . &quoteSQL($hostgroup) . "'
-				WHERE
-					id=$id
-			");
-	
-			if ($g_debug > 0)
+			if ($hostname ne '')
 			{
-				printf("-> (%3d%%) %50s  =  %s\n", $percent, $hostname, $hostgroup);
+				my $hostgroup = &getHostGroup($hostname, $resultHG);
+				# Do not apply a stale group if another writer changed the name.
+				$db_conn->do("UPDATE hlstats_Events_Connects SET hostgroup=?
+					WHERE id=? AND BINARY hostname=BINARY ?", undef, $hostgroup, $id, $hostname)
+					or die "Regroup failed: $DBI::errstr\n";
 			}
-			else
-			{
-				printf("\b\b\b\b%3d%%", $percent);
-			}
-		
-			$p++;
+			$cursor = $id;
+			$processed++;
 		}
-	
-		print "\n" unless ($g_debug > 0);
-	} else {
-		print "\n++ No Connects found!\n";
+		$batches++;
+		print "\n-- Batch $batches complete; resume --regroup --after-id=$cursor\n";
 	}
 }
 else
 {
-	my $result = &doQuery("
-		SELECT
-			DISTINCT ipAddress,
-			hostname
-		FROM
-			hlstats_Events_Connects
-	");
-	
-	my $total = $result->rows;
-	if ($total > 0) {
-		print "\n++ Resolving IPs and re-grouping hosts (total $total connects) ... ";
-	
-		my $resultHG = &queryHostGroups();
-	
-		if ($g_debug > 0)
+	my $cursor = $opt_after_ip;
+	my ($last_ip) = $db_conn->selectrow_array("SELECT MAX(ipAddress) FROM hlstats_Events_Connects");
+	while (defined($last_ip) && (!$opt_max_batches || $batches < $opt_max_batches))
+	{
+		# Only the IP is distinct: multiple historical names must not produce
+		# repeated updates or DNS lookups. PAN-15's IP-leading key serves this scan.
+		my $result = $db_conn->prepare("SELECT DISTINCT ipAddress FROM hlstats_Events_Connects
+			WHERE ipAddress > ? AND ipAddress <= ? ORDER BY ipAddress LIMIT $opt_batch_size");
+		$result->execute($cursor, $last_ip) or die "IP scan failed: $DBI::errstr\n";
+		last unless $result->rows;
+		while (my ($ipAddress) = $result->fetchrow_array)
 		{
-			print "\n\n";
-		}
-		else
-		{
-			print "    ";
-		}
-	
-		my $p = 1;
-		while( my($ipAddress, $hostname) = $result->fetchrow_array )
-		{
-			my $percent = ($p / $total) * 100;
-			
-			if ($hostname eq "")
+			my ($unresolved) = $db_conn->selectrow_array("SELECT id FROM hlstats_Events_Connects
+				WHERE ipAddress=? AND BINARY hostname='' LIMIT 1", undef, $ipAddress);
+			die "IP lookup failed: $DBI::errstr\n" if $db_conn->err;
+			if (defined($unresolved))
 			{
-				$hostname = &resolveIp($ipAddress, $opt_quiet);
+				my $hostname = &resolveIp($ipAddress, $opt_quiet);
+				if ($hostname ne '')
+				{
+					my $hostgroup = &getHostGroup($hostname, $resultHG);
+					$db_conn->do("UPDATE hlstats_Events_Connects SET hostname=?, hostgroup=?
+						WHERE ipAddress=? AND BINARY hostname=''", undef, $hostname, $hostgroup, $ipAddress)
+						or die "Resolution update failed: $DBI::errstr\n";
+				}
 			}
-		
-			my $hostgroup = &getHostGroup($hostname, $resultHG);
-		
-			&execNonQuery("
-				UPDATE
-					hlstats_Events_Connects
-				SET
-					hostname='$hostname',
-					hostgroup='" . &quoteSQL($hostgroup) . "'
-				WHERE
-					ipAddress='$ipAddress'
-			");
-		
-			if ($g_debug > 0)
-			{
-				printf("-> (%3d%%) %15s  =  %50s  =  %s\n", $percent, $ipAddress, $hostname, $hostgroup);
-			}
-			else
-			{
-				printf("\b\b\b\b%3d%%", $percent);
-			}
-		
-			$p++;
+			$cursor = $ipAddress;
+			$processed++;
 		}
-	
-		print "\n" unless ($g_debug > 0);
-	} else {
-		print "\n++ No Connects found!\n";
+		$batches++;
+		print "\n-- Batch $batches complete; resume --after-ip=$cursor\n";
 	}
 }
 
+print "\n++ No Connects found!\n" unless $processed;
 print "\n++ Operation complete.\n";
 exit(0);
