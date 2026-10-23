@@ -236,8 +236,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 		$playerJoin = $playerColumn ? "LEFT JOIN hlstats_Players p ON p.playerId = e.$playerColumn" : '';
 		$filterJoin = $event[5] ?? '';
 		$ids = implode(',', $pageIds[$branch] ?? array('NULL'));
+		// Match the old temporary description column's charset/collation coercion.
+		$description = "CONVERT(LEFT($description, 255) USING " . DB_CHARSET . ') COLLATE ' . DB_COLLATE;
 		$details[] = "SELECT IFNULL(e.eventTime, '') AS eventTime, '$type' COLLATE " . DB_COLLATE . " AS eventType,
-			LEFT($description, 255) AS eventDesc, $serverName AS serverName,
+			$description AS eventDesc, $serverName AS serverName,
 			$mapName AS map, $branch AS branch, e.id AS eventId
 			FROM hlstats_Events_$source e $filterJoin $serverJoin $playerJoin
 			WHERE e.id IN ($ids) AND $where";
