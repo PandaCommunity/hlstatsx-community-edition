@@ -4152,7 +4152,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players` (
   KEY `game` (`game`),
   KEY `kills` (`kills`),
   KEY `hideranking` (`hideranking`),
-  KEY `game_hideranking` (`game`,`hideranking`)
+  KEY `game_skill_rank` (`game`,`hideranking`,`skill`,`kills`,`deaths`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -7659,5 +7659,6 @@ CREATE TABLE IF NOT EXISTS `hlstats_SchemaMigrations` (
 INSERT INTO `hlstats_SchemaMigrations` (`filename`) VALUES
 ('2026_10_23_1000_query_indexes.sql'),
 ('2026_10_23_1012_retained_dimensions.sql'),
+('2026_10_23_1030_player_ranking.sql'),
 ('2026_10_23_1030_search_ip_index.sql'),
 ('2026_10_23_1100_event_retention.sql');

@@ -22,8 +22,9 @@ There are two upgrade generations; they must not be mixed:
 | --- | --- | --- |
 | 1 | `2026_10_23_1000_query_indexes.sql` | Event/profile lookup and graph time-order indexes |
 | 2 | `2026_10_23_1012_retained_dimensions.sql` | Replace Frags map/weapon prefixes with covering dimension indexes |
-| 3 | `2026_10_23_1030_search_ip_index.sql` | Covering IP-prefix/player lookup for connection searches and resolver |
-| 4 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
+| 3 | `2026_10_23_1030_player_ranking.sql` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
+| 4 | `2026_10_23_1030_search_ip_index.sql` | Covering IP-prefix/player lookup for connection searches and resolver |
+| 5 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
 
 Before each deployment:
 
@@ -63,11 +64,19 @@ indexes, execute only the remaining statements in order, and run the final ledge
 INSERT only after every intended change is verified. Preserve the original file;
 record any recovery commands in the deployment log.
 
-For the index-only migration, application SQL is unchanged; rolling back PHP does
+For the first migration, application SQL is unchanged; rolling back PHP does
 not require removing the indexes. If the schema itself must be restored, use the
 verified backup or explicitly reverse the ALTERs during maintenance (restore the
 two dropped single-column keys as well as removing the added keys), then remove
 that migration's ledger row. There is no automatic down migration.
+
+For the player-ranking migration, restore `game_hideranking(game,hideranking)`
+and drop `game_skill_rank` before removing its ledger row. It does not change
+ranking semantics or require simultaneous PHP/Perl deployment. The wider key
+adds storage and ingestion cost; benchmark on your copy. It covers exact rank
+and population scans, not computed K:D/accuracy/headshot ordering. Deep offsets
+and period aggregation still require work proportional to the qualifying data;
+arbitrary page navigation and exact totals are retained.
 
 ### Retention job
 
