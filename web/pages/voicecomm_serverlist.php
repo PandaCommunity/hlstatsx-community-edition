@@ -106,14 +106,15 @@
 				$ve_info->m_cmdcode	= 2;					// Detail mode.
 				$ve_info->m_cmdhost = $vent_server['addr'];
 				$ve_info->m_cmdport = $vent_server['queryPort'];
-				/////////
+				$ve_info->m_cmdpass = $vent_server['password'] ?? '';
 				$rc = $ve_info->Request();
-			//	if ($rc) {
-			//		echo "CVentriloStatus->Request() failed. <strong>$ve_info->m_error</strong><br /><br />\n";
-			//	} else {
+				if ($rc) {
+					$ve_channels = 'err';
+					$ve_slots = $ve_info->m_error;
+				} else {
 					$ve_channels = $ve_info->m_channelcount;
 					$ve_slots = $ve_info->m_clientcount.'/'.$ve_info->m_maxclients;
-			//	}
+				}
 		?>  
 			<tr class="bg1">
 				<td class="fHeading">
@@ -121,7 +122,7 @@
 					&nbsp;<a href="<?php echo $g_options['scripturl'] . "?mode=ventrilo&amp;game=$game&amp;veId=".$vent_server['serverId']; ?>"><?php echo $vent_server['name']; ?></a>
 				</td>
 				<td>
-					<a href="ventrilo://<?php echo $vent_server['addr'].':'.$vent_server['queryPort'] ?>/servername=<?php echo $ve_info->m_name; ?>">
+					<a href="ventrilo://<?php echo $vent_server['addr'].':'.$vent_server['queryPort'] ?>/servername=<?php echo rawurlencode($ve_info->m_name ?? ''); ?>">
 					<?php echo $vent_server['addr'].':'.$vent_server['queryPort']; ?>
 					</a></td>
 				<td>
@@ -131,7 +132,7 @@
 					<?php echo $ve_channels; ?>
 				</td>
 				<td style="text-align:right;">
-					<?php echo $ve_slots; ?>
+					<?php echo eHtml($ve_slots); ?>
 				</td>
 				<td>
 					<?php echo $vent_server['descr']; ?>

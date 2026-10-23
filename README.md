@@ -26,4 +26,3 @@ a PHP frontend.
 ### :speech_balloon: Help
 *  https://forums.alliedmods.net/forumdisplay.php?f=156
 ---
-

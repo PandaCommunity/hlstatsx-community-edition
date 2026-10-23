@@ -4,7 +4,7 @@
 
 Amp orbs for this repository are prepared by `.agents/setup`:
 
-- PHP 8.5 (`php`) is the default CLI and the minimum supported PHP version.
+- PHP 8.5 (`php`) is the default CLI and minimum supported version. Do not add compatibility branches for older PHP versions.
 - MariaDB 10.11 runs as the systemd unit `mariadb`, with database `hlstatsx` and development user `hlstats` / `hlstats`. The schema from `sql/install.sql` is imported, and the seeded admin account is `admin` / `123456`.
 - `web/config.php` reads `HLSTATS_DB_ADDR`, `HLSTATS_DB_USER`, `HLSTATS_DB_PASS`, and `HLSTATS_DB_NAME` from the environment, falling back to the values in the file.
 - `sql/dev-seed.sql` adds a demo TF2 server, three players, live stats, and 24 hours of trend/load history. Setup imports it once after `sql/install.sql`.
@@ -49,3 +49,7 @@ phpcs --standard=PHPCompatibility --runtime-set testVersion 8.5 --extensions=php
 ```
 
 Run the bundled chart regression checks with `php tests/pchart.php` (GD and FreeType required).
+
+Run `php tests/database.php` with the `HLSTATS_DB_*` environment variables set for the database regression checks. They issue only read-only queries and require no application schema or data.
+
+Run `php tests/import_bans.php` with the same variables pointing to a disposable database for ban-import regression checks. These require CREATE/DROP TABLE privileges and clean up their uniquely named fixture tables.
