@@ -165,7 +165,7 @@
 			hlstats_Events_Chat.map
 		FROM
 			hlstats_Events_Chat
-		LEFT JOIN 
+		LEFT JOIN
 			hlstats_Servers
 		ON
 			hlstats_Events_Chat.serverId = hlstats_Servers.serverId
@@ -173,7 +173,8 @@
 			{$whereclause}
 		ORDER BY
 			{$table->sort} {$table->sortorder},
-			{$table->sort2} {$table->sortorder}
+			{$table->sort2} {$table->sortorder},
+			hlstats_Events_Chat.id {$table->sortorder}
 		LIMIT
 			{$table->startitem},
 			{$table->numperpage}
@@ -185,10 +186,6 @@
 			COUNT(*)
 		FROM
 			hlstats_Events_Chat
-		LEFT JOIN 
-			hlstats_Servers
-		ON
-			hlstats_Events_Chat.serverId = hlstats_Servers.serverId
 		WHERE
 			{$whereclause}
 	");

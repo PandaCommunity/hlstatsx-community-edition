@@ -2192,6 +2192,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Chat` (
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`),
   KEY `serverId` (`serverId`),
+  KEY `idx_chat_server_time` (`serverId`,`eventTime`,`id`,`playerId`),
   KEY `idx_player_time` (`playerId`,`eventTime`),
   FULLTEXT KEY `message` (`message`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -7658,6 +7659,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_SchemaMigrations` (
 
 INSERT INTO `hlstats_SchemaMigrations` (`filename`) VALUES
 ('2026_10_23_1000_query_indexes.sql'),
+('2026_10_23_1005_chat_pagination.sql'),
 ('2026_10_23_1012_retained_dimensions.sql'),
 ('2026_10_23_1030_player_ranking.sql'),
 ('2026_10_23_1030_search_ip_index.sql'),
