@@ -12,17 +12,10 @@ Edition uses a Perl daemon to parse the log streamed from the
 game server. The data is stored in a MySQL Database and has
 a PHP frontend.
 
+### Maintenance and contributions
 
-#### :loudspeaker: Important changes
-| Date  | Description | Additional information |
-| ------------- | ------------- | ------------- |
-| 07.01.2020  | [#45](https://github.com/NomisCZ/hlstatsx-community-edition/issues/45) GeoIP2 Linux script updated, GeoLite2 MaxMind database (GDPR and CCPA) | https://blog.maxmind.com/2019/12/18/significant-changes-to-accessing-and-using-geolite2-databases/ |
+Work on this codebase primarily focuses on bug fixes and adapting it to newer PHP versions. The current target is **PHP 8.5+ only**; compatibility with older PHP versions is not maintained.
 
-> Date format: DD.MM.YYYY
----
+Prefer focused fixes and case-by-case manual verification of the affected behavior. Describe what you checked when submitting a change. Do not add permanent tests or expand `tests/` unless explicitly requested; temporary verification scripts are fine, but should be removed afterward.
 
-### :book: Documentation
-* https://github.com/NomisCZ/hlstatsx-community-edition/wiki 🚧 Wiki - work in progress 🚧
-### :speech_balloon: Help
-*  https://forums.alliedmods.net/forumdisplay.php?f=156
----
+See [AGENTS.md](AGENTS.md) for concise development guidance and Amp orb startup instructions.
