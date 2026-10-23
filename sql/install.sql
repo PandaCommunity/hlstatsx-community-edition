@@ -2208,7 +2208,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Connects` (
   `hostgroup` varchar(255) NOT NULL default '',
   `eventTime_Disconnect` datetime default NULL,
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
+  KEY `playerId` (`playerId`),
+  KEY `ipAddress_playerId` (`ipAddress`,`playerId`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -7636,4 +7637,5 @@ CREATE TABLE IF NOT EXISTS `hlstats_SchemaMigrations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `hlstats_SchemaMigrations` (`filename`) VALUES
-('2026_10_23_1000_query_indexes.sql');
+('2026_10_23_1000_query_indexes.sql'),
+('2026_10_23_1030_search_ip_index.sql');
