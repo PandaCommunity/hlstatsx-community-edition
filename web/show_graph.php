@@ -419,8 +419,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 		$ts = strtotime(date('Y-m-d'));
 		$data_array = array();
 		$arcount = 0;
+		$last_skill = 0;
 		$result = $db->query("SELECT eventTime, skill, kills, deaths, headshots, connection_time, UNIX_TIMESTAMP(eventTime) AS ts FROM hlstats_Players_History WHERE playerId=" . $player . " ORDER BY eventTime DESC LIMIT 0, " . $deletedays);
-		while (($rowdata = $db->fetch_array($result)) && ($arcount < $deletedays))
+		while (($arcount < $deletedays) && ($rowdata = $db->fetch_array($result)))
 		{
 			//echo $rowdata['eventTime']." - ".date("Y-m-d", $ts)."\n";
 			while (($rowdata['eventTime'] != date("Y-m-d", $ts)) && ($arcount < $deletedays))
@@ -431,15 +432,19 @@ For support and installation notes visit http://www.hlxcommunity.com
 				$arcount++;
 			}
 
+			if ($arcount >= $deletedays)
+				break;
+
 			$data_array[] = array('timestamp' => $rowdata['ts'], 'skill' => $rowdata['skill'], 'kills' => $rowdata['kills'], 'headshots' => $rowdata['headshots'], 'deaths' => $rowdata['deaths'], 'time' => $rowdata['connection_time']);
+			$last_skill = $rowdata['skill'];
 			$arcount++;
 			$ts -= 86400;
 		}
 
 		while (($arcount < $deletedays))
 		{
-			// insert null value
-			$data_array[] = array('timestamp' => $ts, 'skill' => $rowdata['skill'], 'kills' => 0, 'headshots' => 0, 'deaths' => 0, 'time' => 0);
+			// Retain the oldest real skill, or zero when there is no history.
+			$data_array[] = array('timestamp' => $ts, 'skill' => $last_skill, 'kills' => 0, 'headshots' => 0, 'deaths' => 0, 'time' => 0);
 			$ts -= 86400;
 			$arcount++;
 		}

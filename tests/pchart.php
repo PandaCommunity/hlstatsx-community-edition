@@ -8,6 +8,7 @@ set_error_handler(function ($severity, $message, $file, $line) {
 require __DIR__ . '/../web/includes/pChart/pData.class';
 require __DIR__ . '/../web/includes/pChart/pChart.class';
 require __DIR__ . '/../web/includes/pChart/pCache.class';
+require __DIR__ . '/../web/includes/functions_graph.php';
 
 // These public methods deliver a response and exit, so test them in a child PHP.
 if (($argv[1] ?? '') === '--cache') {
@@ -19,6 +20,11 @@ if (($argv[1] ?? '') === '--map') {
     $chart->tmpFolder = $argv[2] . '/';
     $chart->getImageMap('map?x=1?y=2');
     exit(1);
+}
+if (($argv[1] ?? '') === '--heatmap') {
+    require __DIR__ . '/../heatmaps/heatmap.class.php';
+    echo 'heatmap loaded';
+    exit(0);
 }
 
 function check($condition, $message)
@@ -51,6 +57,22 @@ runCase('scalar, single, multiple and repeated AddPoint', function () {
     $data->AddPoint([], 'Serie1');
     check(array_column($data->GetData(), 'Serie1') === [42, '43', 44, 45, 46], 'points must append');
     check(array_column($data->GetData(), 'other') === [7, 8, 9, 10, 11], 'series must align');
+});
+
+runCase('append preserves null observations and aligned labels', function () {
+    $data = new pData();
+    $data->AddPoint([1, null]);
+    $data->AddPoint(3);
+    $data->AddPoint(null);
+    $data->AddPoint([5, 6]);
+    $data->AddPoint(['one', 'gap', 'three', 'gap again', 'five', 'six'], 'dates');
+    check(array_column($data->GetData(), 'Serie1') === [1, null, 3, null, 5, 6], 'null points occupy series slots');
+    check($data->GetData()[4]['dates'] === 'five', 'date labels must remain aligned');
+});
+
+runCase('heatmap loads without PHP 8.5 diagnostics', function () {
+    exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__FILE__) . ' --heatmap 2>&1', $output, $status);
+    check($status === 0 && implode("\n", $output) === 'heatmap loaded', implode("\n", $output));
 });
 
 $tmp = sys_get_temp_dir() . '/hlstats-pchart-' . getmypid();
@@ -100,6 +122,97 @@ try {
         check(imagesx($image) === 380 && imagesy($image) === 200 && imagecolorat($image, 0, 0) === 0x0c2238, 'cache read bytes');
         $cache->DeleteFromCache('test', $data);
         check(!$cache->IsInCache('test', $data), 'cache delete');
+    });
+
+    $invalidRenderers = [
+        'drawLineGraph', 'drawFilledLineGraph', 'drawCubicCurve', 'drawFilledCubicCurve',
+        'drawPlotGraph', 'drawBarGraph', 'drawOverlayBarGraph', 'drawStackedBarGraph', 'drawLimitsGraph',
+        'drawRadarAxis', 'drawRadar', 'drawFilledRadar', 'drawBasicPieGraph', 'drawFlatPieGraph', 'drawPieGraph',
+        'drawFlatPieGraphWithShadow', 'drawXYScale', 'drawXYGraph', 'drawXYPlotGraph',
+        'drawArea', 'drawPieLegend', 'setLabel', 'writeValues', 'drawRightScale',
+    ];
+    foreach ($invalidRenderers as $method) {
+        runCase("empty/invalid $method is a nonfatal no-op", function () use ($tmp, $method) {
+            $data = new pData();
+            $data->AddSerie();
+            $data->SetSerieName('A');
+            $description = $data->GetDataDescription();
+            foreach ([[], null, [42], [[]]] as $rows) {
+                $chart = new pChart(380, 200);
+                $chart->drawBackground(90, 90, 90);
+                $chart->setGraphArea(50, 28, 339, 174);
+                $chart->Render($tmp . '/before-invalid.png');
+                $args = [$rows, $description];
+                if (strpos($method, 'PieGraph') !== false) {
+                    $args = [$rows, $description, 190, 100, 50];
+                } elseif ($method === 'drawArea') {
+                    $args = [$rows, 'Serie1', 'Serie2', 12, 34, 56];
+                } elseif ($method === 'drawPieLegend') {
+                    $args = [10, 10, $rows, $description, 12, 34, 56];
+                } elseif ($method === 'setLabel') {
+                    $args = [$rows, $description, 'Serie1', 1, 'Point'];
+                } elseif ($method === 'writeValues') {
+                    $args[] = ['Serie1'];
+                } elseif (strpos($method, 'drawXY') === 0) {
+                    $args = [$rows, $description, 'Serie1', 'Serie2'];
+                    if ($method === 'drawXYScale') {
+                        $args = array_merge($args, [0, 0, 0]);
+                    }
+                } elseif ($method === 'drawRightScale') {
+                    $args = [$rows, $description, SCALE_NORMAL, 0, 0, 0];
+                }
+                check($chart->$method(...$args) === -1, 'invalid render must return -1');
+                $chart->reportWarnings();
+                ob_start();
+                try {
+                    $chart->Render($tmp . '/invalid-render.png');
+                } finally {
+                    $warnings = ob_get_clean();
+                }
+                check(strpos($warnings, '[Warning]') !== false, 'invalid render must report a warning');
+                check(file_get_contents($tmp . '/invalid-render.png') === file_get_contents($tmp . '/before-invalid.png'), 'invalid render must leave all pixels unchanged');
+            }
+        });
+    }
+
+    runCase('legacy dashed lines truncate only at GD coordinates', function () {
+        $image = imagecreatetruecolor(40, 40);
+        image_dashed_line($image, 3.9, 7.9, 20.9, 7.9, [0xffffff, -1]);
+        check(imagecolorat($image, 3, 7) === 0xffffff, 'fractional line starts at truncated pixel');
+        check(imagecolorat($image, 3, 8) === 0, 'fractional line must not round up');
+        image_dashed_line($image, 25.9, 4.9, 25.9, 21.9, [0xffffff, -1]);
+        check(imagecolorat($image, 25, 4) === 0xffffff, 'vertical line uses the same truncation policy');
+        check(imagecolorat($image, 26, 4) === 0, 'vertical line must not round up');
+    });
+
+    runCase('legacy graph fractional grids and zero baselines', function () use ($tmp) {
+        global $max_pos_y, $legend_x, $bar_type, $deletedays, $server_load_type, $first_entry, $gray_border;
+        foreach ([0, 1, 2] as $bar_type) {
+            foreach ([0, 123.75, 9999.25, 10000.75] as $value) {
+                foreach ([1, 2, 3, 4] as $server_load_type) {
+                    $max_pos_y = [];
+                    $legend_x = 0;
+                    $deletedays = 28;
+                    $first_entry = 0;
+                    $gray_border = 0x888888;
+                    $image = imagecreatetruecolor(503, 155);
+                    $rows = [];
+                    for ($i = 0; $i < 30; $i++) {
+                        $rows[] = ['timestamp' => 1792713600 - $i * 86400, 'value' => $value, 'map' => $i < 15 ? 'cp_dustbowl' : 'ctf_2fort'];
+                    }
+                    drawItems($image, ['width' => 503, 'height' => 155, 'indent_x' => [35, 35], 'indent_y' => [15, 15]], $rows, 0, 'value', 1, 1, 1, 1, [0xff0000, 0x00ff00, 0xffffff, 0xaaaaaa, 0x444444]);
+                    imagepng($image, $tmp . '/legacy.png');
+                    check(getimagesize($tmp . '/legacy.png')[0] === 503, 'legacy graph is a decodable PNG');
+                    if ($value == 0) {
+                        $baselinePixels = 0;
+                        for ($x = 35; $x < 468; $x++) {
+                            $baselinePixels += imagecolorat($image, $x, 140) === 0xff0000 ? 1 : 0;
+                        }
+                        check($baselinePixels > 20, "zero series must draw along the baseline (type $bar_type range $server_load_type)");
+                    }
+                }
+            }
+        }
     });
 
     runCase('image map query stripping and flush', function () use ($tmp) {
