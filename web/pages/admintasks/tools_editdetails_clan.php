@@ -64,6 +64,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 <form method="post" action="<?php echo $g_options['scripturl'] . "?mode=admin&amp;task=$selTask&amp;id=$id&" . strip_tags(SID); ?>">
 <?php
+	echo csrf_input();
 	$proppage = new PropertyPage("hlstats_Clans", "clanId", $id, array(
 		new PropertyPage_Group("Profile", array(
 			new PropertyPage_Property("name", "Clan Name", "text"),

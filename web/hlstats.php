@@ -47,7 +47,9 @@ if(defined('HISTORICAL_CACHE'))
 	$historical_cache=constant('HISTORICAL_CACHE');
 }
 
-if($historical_cache==1)
+// Never serve cached authentication pages, session tokens or mutation responses.
+if($historical_cache==1 && $_SERVER['REQUEST_METHOD'] === 'GET'
+	&& !in_array($_GET['mode'] ?? '', array('admin', 'profile'), true))
 {
 	$rawmd5=md5(http_build_query($_REQUEST));
 	$dir1=substr($rawmd5,0,1);
@@ -178,6 +180,12 @@ if (!$realgame && $game)
 }
 
 $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
+
+// Keep the legacy profiling URL behind the same authentication as admin tools.
+if ($mode === 'profile') {
+	$mode = 'admin';
+	$_GET['task'] = 'tools_profile';
+}
 
 $valid_modes = array(
 	'players',

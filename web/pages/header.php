@@ -137,7 +137,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			echo '
 			<!-- Either this is your first visit in a while, or you don\'t have javascript enabled -->
 			<form name="jsform" id="jsform" action="" method="post" style="display:none">
-			<div>
+			<div>' . ($mode === 'admin' ? csrf_input() : '') . '
 			<input name="js" type="text" value="true" />
 			<script type="text/javascript">
 			document.jsform.submit();
@@ -228,6 +228,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
 		<div class="fNormal" style="float:right;"> 
 			<form name="style_selection" id="style_selection" action="" method="post"> Style: 
+				<?php if ($mode === 'admin') echo csrf_input(); ?>
 				<select name="stylesheet" onchange="document.style_selection.submit()"> 
 				<?php 
 					$d = dir('styles'); 
