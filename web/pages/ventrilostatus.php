@@ -24,6 +24,7 @@ function StrSplit( $src, $sep, &$d1, &$d2 )
 	if ( $pos === false )
 	{
 		$d1 = $src;
+		$d2 = '';
 		return;
 	}
 	
@@ -128,7 +129,7 @@ class CVentriloChannel
 	var	$m_prot;	// Password protected flag.
 	var	$m_auth;	// Authorication protected flag.
 	var	$m_name;	// Channel name.
-	var	$m_comm;	// Channel comment.
+	var	$m_comm = '';	// Channel comment.
 	
 	function Parse( $str )
 	{
@@ -178,6 +179,7 @@ class CVentriloStatus
 	var	$m_cmdcode;		// Specific status request code. 1=General, 2=Detail.
 	var	$m_cmdhost;		// Hostname or IP address to perform status of.
 	var	$m_cmdport;		// Port number of server to status.
+	var $m_cmdpass = '';	// Optional status password.
 	
 	// These are the result variables that are filled in when the request is performed.
 	
@@ -194,14 +196,15 @@ class CVentriloStatus
 	var	$m_uptime;				// Server uptime in seconds.
 	var	$m_platform;			// Platform description.
 	var	$m_version;				// Version string.
+	var $m_auth;				// Server authentication flag.
 	
-	var	$m_channelcount;		// Number of channels as specified by the server.
+	var	$m_channelcount = 0;	// Number of channels as specified by the server.
 	var	$m_channelfields;		// Channel field names.
-	var	$m_channellist;			// Array of CVentriloChannel's.
+	var	$m_channellist = array();	// Array of CVentriloChannel's.
 	
-	var	$m_clientcount;			// Number of clients as specified by the server.
+	var	$m_clientcount = 0;		// Number of clients as specified by the server.
 	var	$m_clientfields;		// Client field names.
-	var $m_clientlist;			// Array of CVentriloClient's.
+	var $m_clientlist = array();	// Array of CVentriloClient's.
 	
 	function Parse( $str )
 	{
@@ -343,15 +346,24 @@ class CVentriloStatus
 	
 	function Request()
 	{
+		$this->m_error = '';
+		$this->m_channellist = array();
+		$this->m_clientlist = array();
+		$this->m_channelcount = 0;
+		$this->m_clientcount = 0;
 		$ventserv = new Vent;
 		$ventserv->setTimeout( 100000 );		// 100 ms timeout
-		if ( $ventserv->makeRequest( $this->m_cmdcode, $this->m_cmdhost, $this->m_cmdport )) {
-			$res = explode("[\n\r\t]+", $ventserv->getResponse());
+		if ( !$ventserv->makeRequest( $this->m_cmdcode, $this->m_cmdhost, $this->m_cmdport, $this->m_cmdpass )) {
+			$this->m_error = $ventserv->error;
+			return -1;
 		}
 		
+		$res = preg_split('/[\r\n\t]+/', $ventserv->getResponse(), -1, PREG_SPLIT_NO_EMPTY);
 		foreach($res as $line)
 		{
-			$this->Parse($line);
+			if ( $this->Parse($line) == -1 ) {
+				return -1;
+			}
 		}
 		
 		return 0;
@@ -485,39 +497,10 @@ function &getCRCref()
 	return $ventrilo_crc_table;
 }
 
-/* decbin2: PHP's decbin() doesn't pad the binary string to a full 32 bits, unless
- *	it's a negative number. Since we need to mimic casting to smaller int types,
- *	I'll use this version over the built-in decbin().
- */
-function decbin2( $val ) { return str_pad( decbin( $val ), 32, "0", STR_PAD_LEFT ); }
-
-
-/* bindec2: PHP's decbin() stores negative numbers as two's complement... but PHP's
- *	bindec() doesn't check for two's! I'll use this to decode rather than the built-in function.
- *
- *	bindec( decbin( -1000 )) != -1000		// not correct!
- *	bindec2( decbin2( -1000 )) == -1000		// correct!
- */
-function bindec2( $binstr )
-{
-	$val = bindec( $binstr );
-
-	// it's not two's. Return the built-in bindec() value.
-	if (( strlen( $binstr ) != 32 ) || ( substr( $binstr, 0, 1 ) == "0" )) { return $val;  }
-
-	// it's two's. I needed the 0 shift to trick PHP into treating the var as an int.
-	return (( ~ ( $val << 0 )) + 1 ) * - 1;
-}
-
-
-/* smallCast: mimic a cast from larger int to smaller int. $bits is the destination size.
- *	Internally, PHP integers seem to always be 32 bit. (my test systems are both 64-bit
- *	- Athlon x64 and PowerPC G5 - and PHP still uses 32 bit ints.)
- */
+/* smallCast: unsigned 8/16-bit protocol arithmetic on both 32- and 64-bit PHP. */
 function smallCast( $val, $bits )
 {
-	$binstr = decbin2( $val );
-	return bindec2( substr ( $binstr, 32 - $bits ));
+	return $val & ((1 << $bits) - 1);
 }
 
 
@@ -531,6 +514,7 @@ class Vent
 	var $timeout;			// timeout for socket read in *microseconds* ( 1,000,000 microsec = 1 sec )
 	var $packets = array();	// hold all the decoded response packets, in correct order
 	var $response;			// all the decoded data
+	var $error = '';		// Transport or protocol failure, without writing into the page.
 
 	function getClock()			{ return $this->clock; }
 	function getTimeout()			{ return $this->timeout; }
@@ -548,74 +532,92 @@ class Vent
 		$this->clock = smallCast( time(), 16 );		// reset the clock for each request
 		$this->packets = array();					// start fresh
 		$this->response = '';
-	
-		$data = pack( "a16", $pass );				// the only data for a request is a password, 16 bytes.
+		$this->error = '';
 	
 		$request = new VentRequestPacket( $cmd, $this->clock, $pass );
 
-		$sfh = fsockopen( "udp://$ip", $port, $errno, $errstr );
+		$sfh = @fsockopen( "udp://$ip", $port, $errno, $errstr, $this->timeout / 1000000 );
 
 		if ( !$sfh ) {
-			echo("Socket Error: $errno - $errstr\n");
+			$this->error = "Socket Error: $errno - $errstr";
 			return false;
 		}
 
-		fwrite( $sfh, $request->packet );			// put the encoded request packet on the stream
-		stream_set_timeout( $sfh, 0, $this->timeout );
+		if ( @fwrite( $sfh, $request->packet ) !== strlen( $request->packet ) ) {
+			$this->error = 'Failed to send the Ventrilo status request.';
+			fclose( $sfh );
+			return false;
+		}
+		$deadline = microtime(true) + $this->timeout / 1000000;
 
 		/* read response packets off the stream. with UDP, packets can (and often)
 		*   come out of order, so we'll put then back together after closing the socket.
 		*/
-		while( false != $pck = fread( $sfh, VENT_MAXPACKETSIZE ) ) {
-			if (  count( $this->packets ) >= VENT_MAXPACKETNO ) {
-				echo("ERROR: Received more packets than the maximum allowed in a response.\n");
-				fclose( $sfh );
-				return false;	  
-			}
+		while ( ($remaining = $deadline - microtime(true)) > 0 ) {
+			$microsecs = max(1, (int) ($remaining * 1000000));
+			stream_set_timeout( $sfh, intdiv($microsecs, 1000000), $microsecs % 1000000 );
+			$pck = @fread( $sfh, VENT_MAXPACKETSIZE + 1 );
+			if ( $pck === false || $pck === '' ) { break; }
 
-			// decode this packet. If we get null back, there was an error in the decode.
-			if ( null == $rpobj = new VentResponsePacket( $pck )) { fclose( $sfh); return false; }
+			$rpobj = new VentResponsePacket( $pck );
+			if ( $rpobj->error !== '' ) {
+				$this->error = $rpobj->error;
+				fclose( $sfh );
+				return false;
+			}
 
 			/* check the id / clock. They should match the request, if not - skip it.
 			* also skip if there's a duplicate packet. Could throw an error here.
 			*/
 			if (( $rpobj->id != $this->clock ) || ( isset( $this->packets[$rpobj->pck] ))) { continue; }
 
+			if ( count( $this->packets ) ) {
+				$first = reset( $this->packets );
+				if ( $rpobj->totpck != $first->totpck || $rpobj->totlen != $first->totlen || $rpobj->crc != $first->crc ) {
+					$this->error = 'Inconsistent Ventrilo response headers.';
+					fclose( $sfh );
+					return false;
+				}
+			}
 			$this->packets[$rpobj->pck] = $rpobj;
+			if ( count( $this->packets ) == $rpobj->totpck ) { break; }
 		}
 
 		fclose( $sfh );
 
 		// check if we've got the right number of packets
-		if ( $this->packets[0]->totpck != count( $this->packets )) {
-			echo("ERROR: Received less packets than expected in the response.\n");
+		if ( !isset( $this->packets[0] ) || $this->packets[0]->totpck != count( $this->packets )) {
+			$this->error = 'Timed out waiting for a complete Ventrilo response.';
 			return false;
 		}
 
 		// the order may not be correct. sort on the key.
-		if ( !ksort( $this->packets, SORT_NUMERIC )) {
-			echo("ERROR: Failed to sort the response packets in order.\n");
-			return false;
-		}
+		ksort( $this->packets, SORT_NUMERIC );
 
 		/* All the response packets arrived, were decoded, and are in the proper order. We 
 		*   can pull the decoded data together, and check that the total length matches
 		*   the value in the header, and the crc matches.
 		*/
-		foreach( $this->packets as $packet ) { $this->response .= $packet->rawdata; }
+		$response = '';
+		foreach( $this->packets as $packet ) { $response .= $packet->rawdata; }
 
-		$rlen = strlen( $this->response );
+		$rlen = strlen( $response );
 		if ( $rlen != $this->packets[0]->totlen ) {
-			echo("ERROR: Response data is $rlen bytes. Expected {$this->packets[0]->totlen} bytes.\n");
+			$this->error = "Response data is $rlen bytes. Expected {$this->packets[0]->totlen} bytes.";
 			return false;
 		}
 
-		$crc = Vent::getCRC( $this->response );
+		$crc = Vent::getCRC( $response );
 
 		if ( $crc != $this->packets[0]->crc ) {
-			echo("ERROR: response crc is $crc. Expected: {$this->packets[0]->crc}.\n");
+			$this->error = "Response crc is $crc. Expected: {$this->packets[0]->crc}.";
 			return false;
 		}
+		if ( $response === '' ) {
+			$this->error = 'Empty Ventrilo status response.';
+			return false;
+		}
+		$this->response = $response;
 
 		return true;			// everything worked fine.
 	}
@@ -623,14 +625,14 @@ class Vent
 
 	/* getCRC: find the CRC for a data argument.
 	*/
-	function getCRC( &$data )
+	static function getCRC( $data )
 	{
 		$crc = 0;
-		$dtoks = unpack( "c*", $data );		// Note: unpack starts output array index at 1, NOT 0.
+		$dtoks = unpack( "C*", $data );		// Protocol bytes are unsigned.
 		$table = getCRCref();			// my CRC table reference
 
 		for( $i = 1; $i <= count($dtoks); $i++ ) {
-			$crc = $table[ $crc >> 8 ] ^ $dtoks[$i] ^ ( smallCast( $crc << 8, 16 ) );
+			$crc = smallCast( $table[ $crc >> 8 ] ^ $dtoks[$i] ^ ( $crc << 8 ), 16 );
 		}
 
 		return $crc;
@@ -653,7 +655,8 @@ class Vent
  */
 class VentPacket
 {
-	var $rawdata;		// hold raw, unencoded data portion of packet
+	var $rawdata = '';	// hold raw, unencoded data portion of packet
+	var $error = '';		// Nonempty when decoding failed.
 	var $data;		// hold encoded data
 
 	var $head_items;	// an array, with references to each item in the header, in proper order.
@@ -698,10 +701,10 @@ class VentRequestPacket extends VentPacket
 	 */
 	function createKeys( &$key, &$a1, &$a2, $is_head = false )
 	{
-		$rndupk = unpack( "vx", pack( "S", mt_rand( 1, 65536 )));	// need this in little endian
-		$rnd = $rndupk['x'];
-
-		$rnd &= 0x7fff;
+		// A zero low byte makes the reference decoder skip decryption.
+		do {
+			$rnd = mt_rand( 1, 0x7fff );
+		} while ( ($rnd & 0xff) == 0 );
 
 		$a1 = smallCast( $rnd, 8 );
 		$a2 = $rnd >> 8;
@@ -756,7 +759,7 @@ class VentRequestPacket extends VentPacket
 	{
 		$this->createKeys( $key, $a1, $a2 );
 
-		$chars = unpack( "c*", $this->rawdata );		// 1 indexed array
+		$chars = unpack( "C*", $this->rawdata );		// 1 indexed array
 		$table = getDataEncodeRef();				// Data table reference
 		$encdata = '';
 
@@ -813,7 +816,7 @@ class VentResponsePacket extends VentPacket
 		$a2 = $key >> 8;
 
 		if ( $a1 == 0 ) { 
-			echo("ERROR: Invalid packet. Header key is invalid.\n");
+			$this->error = 'Invalid packet. Header key is invalid.';
 			return false;
 		}
 
@@ -824,7 +827,7 @@ class VentResponsePacket extends VentPacket
 		$item_no = 1;		// for $this->head_items array. we skip the unencoded headkey, at index 0.
 
 		for( $i = 1; $i <= count( $chars ); $i++ ) {
-			$chars[$i] -= smallCast( $table[$a2] + (( $i - 1 ) % 5 ), 8 );
+			$chars[$i] = smallCast( $chars[$i] - $table[$a2] - (( $i - 1 ) % 5 ), 8 );
 			$a2 = smallCast( $a2 + $a1, 8 );
 
 			// Once we've completed two bytes, we can treat them as a short, and fix the endian.
@@ -837,12 +840,16 @@ class VentResponsePacket extends VentPacket
 
 		// simple sanity checks
 		if (( $this->zero != 0 ) || ( $this->cmd != 3 )) {
-			echo("ERROR: Invalid packet. Expected 0 & 3, found {$this->zero} & {$this->cmd}.\n");
+			$this->error = "Invalid packet. Expected 0 & 3, found {$this->zero} & {$this->cmd}.";
 			return false;
 		}
 
 		if ( $this->len != strlen( $this->data )) {
-			echo("ERROR: Invalid packet. Data is ". strlen( $this->data ) ." bytes, expected {$this->len}.\n");
+			$this->error = "Invalid packet. Data is ". strlen( $this->data ) ." bytes, expected {$this->len}.";
+			return false;
+		}
+		if ( $this->totpck < 1 || $this->totpck > VENT_MAXPACKETNO || $this->pck >= $this->totpck ) {
+			$this->error = 'Invalid packet count or index.';
 			return false;
 		}
 
@@ -861,14 +868,14 @@ class VentResponsePacket extends VentPacket
 		$a2 = $this->datakey >> 8;
 
 		if ( $a1 == 0 ) { 
-			echo("ERROR: Invalid packet. Data key is invalid.\n");
+			$this->error = 'Invalid packet. Data key is invalid.';
 			return false;
 		}
 
 		$chars = unpack( "C*", $this->data );		// unpack the data as unsigned chars
 
 		for( $i = 1; $i <= count( $chars ); $i++ ) {
-			$chars[$i] -= smallCast( $table[$a2] + (( $i - 1 ) % 72 ), 8 );
+			$chars[$i] = smallCast( $chars[$i] - $table[$a2] - (( $i - 1 ) % 72 ), 8 );
 			$a2 = smallCast( $a2 + $a1, 8 );
 			$this->rawdata .= chr( $chars[$i] );
 		}
@@ -883,9 +890,8 @@ class VentResponsePacket extends VentPacket
 		$plen = strlen( $packet );
 
 		if (( $plen > VENT_MAXPACKETSIZE ) || ( $plen < VENT_HEADSIZE )) {
-			echo("ERROR: Response packet was $plen bytes. It should be between ");
-			echo( VENT_HEADSIZE ." and ". VENT_MAXPACKETSIZE ." bytes.\n");
-			return null;
+			$this->error = "Response packet was $plen bytes. It should be between " . VENT_HEADSIZE . " and " . VENT_MAXPACKETSIZE . " bytes.";
+			return;
 		}
 
 		$this->mapHeader();							// set up the references
@@ -893,8 +899,8 @@ class VentResponsePacket extends VentPacket
 		$this->header = substr( $packet, 0, VENT_HEADSIZE );
 		$this->data = substr( $packet, VENT_HEADSIZE );
 
-		if ( !$this->decodeHeader() ) { return null; }
-		if ( !$this->decodeData() ) { return null; }
+		if ( !$this->decodeHeader() ) { return; }
+		$this->decodeData();
 	}
 }
 /* end of VentResponsePacket class */
