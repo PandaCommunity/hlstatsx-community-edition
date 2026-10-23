@@ -80,14 +80,10 @@ class DB_mysql
 
 		$this->querycount = 0;
 
-		if ( $use_pconnect )
-		{
-			$this->link = @mysqli_pconnect($db_addr, $db_user, $db_pass);
-		}
-		else
-		{
-			$this->link = @mysqli_connect($db_addr, $db_user, $db_pass);
-		}
+		// This legacy API handles errors itself and lets query(..., false) return false.
+		mysqli_report(MYSQLI_REPORT_OFF);
+		$host = $use_pconnect ? 'p:' . $db_addr : $db_addr;
+		$this->link = @mysqli_connect($host, $db_user, $db_pass);
 
 		if ( $this->link )
 		{
@@ -100,7 +96,6 @@ class DB_mysql
 				$this->db_name = $db_name;
 				if ( !@mysqli_select_db($this->link, $db_name) )
 				{
-					@mysqli_close($this->link);
 					$this->error("Could not select database '$db_name'. Check that the value of DB_NAME in config.php is set correctly.");
 				}
 			}
@@ -274,7 +269,12 @@ class DB_mysql
 
 		if ( $query_id )
 		{
-			return @mysqli_result($query_id, $row, $field);
+			if ( !mysqli_data_seek($query_id, $row) )
+			{
+				return false;
+			}
+			$values = mysqli_fetch_array($query_id);
+			return array_key_exists($field, $values) ? $values[$field] : false;
 		}
 		return false;
 	}
@@ -291,12 +291,14 @@ class DB_mysql
 
 	function error($message, $exit=true)
 	{
+		$errno = $this->link ? mysqli_errno($this->link) : mysqli_connect_errno();
+		$error = $this->link ? mysqli_error($this->link) : mysqli_connect_error();
 		error(
 			"<b>Database Error</b><br />\n<br />\n" .
 			"<i>Server Address:</i> $this->db_addr<br />\n" .
 			"<i>Server Username:</i> $this->db_user<br /><br />\n" .
 			"<i>Error Diagnostic:</i><br />\n$message<br /><br />\n" .
-			"<i>Server Error:</i> (" . @mysqli_errno($this->link) . ") " . @mysqli_error($this->link) . "<br /><br />\n" .
+			"<i>Server Error:</i> ($errno) $error<br /><br />\n" .
 			"<i>Last SQL Query:</i><br />\n<pre style=\"font-size:2px;\">$this->last_query</pre>",
 			$exit
 		);

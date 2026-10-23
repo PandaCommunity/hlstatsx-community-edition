@@ -472,7 +472,7 @@ if ($server_data['addr'] != '')  {
 			$j=0;
 			$thisteam = $teamdata[$curteam];
 			$teamcolor = 'background:'.$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'];
-			$bordercolor = 'background:'.$$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'].';border-top:1px '.$thisteam['playerlist_color'].' solid';
+			$bordercolor = 'background:'.$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'].';border-top:1px '.$thisteam['playerlist_color'].' solid';
 			$team_display_name  = htmlspecialchars($thisteam['name']);
 
 			while (isset($playerdata[$curteam][$j]))
