@@ -22,6 +22,10 @@ There are two upgrade generations; they must not be mixed:
 | --- | --- | --- |
 | 1 | `2026_10_23_1000_query_indexes.sql` | Event/profile lookup and graph time-order indexes |
 | 2 | `2026_10_23_1005_chat_pagination.sql` | Cover global chat's per-server date/id candidate prefixes; retain the compact server key for fast legacy totals (which may include orphaned-player messages) |
+| 3 | `2026_10_23_1012_retained_dimensions.sql` | Replace Frags map/weapon prefixes with covering dimension indexes |
+| 4 | `2026_10_23_1030_player_ranking.sql` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
+| 5 | `2026_10_23_1030_search_ip_index.sql` | Covering IP-prefix/player lookup for connection searches and resolver |
+| 6 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
 
 Before each deployment:
 
@@ -61,11 +65,62 @@ indexes, execute only the remaining statements in order, and run the final ledge
 INSERT only after every intended change is verified. Preserve the original file;
 record any recovery commands in the deployment log.
 
-For the index-only migration, application SQL is unchanged; rolling back PHP does
+For the first migration, application SQL is unchanged; rolling back PHP does
 not require removing the indexes. If the schema itself must be restored, use the
 verified backup or explicitly reverse the ALTERs during maintenance (restore the
 two dropped single-column keys as well as removing the added keys), then remove
 that migration's ledger row. There is no automatic down migration.
+
+For the player-ranking migration, restore `game_hideranking(game,hideranking)`
+and drop `game_skill_rank` before removing its ledger row. It does not change
+ranking semantics or require simultaneous PHP/Perl deployment. The wider key
+adds storage and ingestion cost; benchmark on your copy. It covers exact rank
+and population scans, not computed K:D/accuracy/headshot ordering. Deep offsets
+and period aggregation still require work proportional to the qualifying data;
+arbitrary page navigation and exact totals are retained.
+
+### Retention job
+
+Apply `2026_10_23_1100_event_retention.sql` before using the batched pruning job;
+without the time-leading keys each batch can scan and sort the remaining table.
+The job freezes its cutoffs once, deletes oldest eligible timestamps in batches
+of at most 1,000 rows, and yields 10 ms between full batches. It drains the backlog;
+there is no whole-run time limit. Row limits reduce lock duration, not guarantee a
+wall-clock bound on slow disks or busy servers. Interrupted runs can be restarted;
+completed MyISAM deletes are not rolled back. Each restart computes new cutoffs.
+Late-arriving historical events remain eligible regardless of their auto-increment
+ID; NULL timestamps and exact cutoff timestamps are retained.
+
+When pruning and awards run together, the event/history cutoff is capped at the
+requested award period's start (`--date` minus `--numdays`). This also retains the
+boundary DATE history row. Prune-only runs retain the original datetime comparison
+for DATE history: a cutoff at noon expires that day's midnight history row.
+Trend's two-day and server load's one-year retention policies/keys are unchanged.
+Global OPTIMIZE behavior is unchanged and can still lock tables independently.
+
+### Retained map/weapon dimensions (PAN-18)
+
+The second migration replaces two indexes, rather than adding redundant candidates.
+The full dimension, killer, headshot and server keys cover request-local leaderboard
+aggregation and server-game totals. They do not introduce lifetime counters, cached
+summaries, expiry jobs, or per-frag application writes. Player/server lookup keys
+remain unchanged. Leaderboards still aggregate and sort the matching retained
+events before LIMIT; very popular dimensions are not constant-time lookups.
+
+A warm-cache MariaDB 10.11/MyISAM benchmark used 600,000 synthetic retained frags,
+20,000 players, 40 servers and four games, including popular dimensions (~150,000
+rows), selective dimensions (~30,000), and colliding map/weapon prefixes. Median
+of five ANALYZE executions: popular map leaderboard 190 → 55 ms, weapon 204 → 65 ms
+with request-local grouping before the player join; server-game totals 265 → 135 ms
+and 303 → 128 ms. Full single-column keys alone did not improve popular queries.
+Three-column covering keys improved leaderboards but did not cover server totals,
+which is why the chosen keys also include serverId.
+
+Total Frags index space grew from 31.93 to 38.93 MiB on that fixture. Median append
+time for 20 batches of 1,000 rows grew from 907 to 1,146 ms (~26%); this is a short
+synthetic batch benchmark, not a production throughput guarantee. Benchmark your
+own data and ingestion workload before adopting the migration. Prefix-heavy
+synthetic data exaggerates some selectivity gains; no concurrent-load claim is made.
 
 ## Adding a migration
 

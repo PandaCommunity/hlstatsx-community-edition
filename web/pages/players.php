@@ -356,41 +356,60 @@ For support and installation notes visit http://www.hlxcommunity.com
 				$maxEvent = $minEvent + 86400;
 			}
 
+			// Aggregate before joining player details: one lookup per player, not per day.
+			// Coarse date bounds enable range access in the DB session's timezone.
+			// Keep the exact inclusive epoch checks: skipped/repeated local midnights
+			// need not round-trip through FROM_UNIXTIME. Allow a day on either side.
 			$result = $db->query("
 				SELECT
 					SQL_CALC_FOUND_ROWS
-					hlstats_Players_History.playerId,
+					period.playerId,
 					hlstats_Players.lastName,
 					hlstats_Players.flag,
 					hlstats_Players.country,
 					hlstats_Players.mmrank,
-					SUM(hlstats_Players_History.connection_time) AS connection_time,
-					SUM(hlstats_Players_History.skill_change) AS skill,
-					SUM(hlstats_Players_History.skill_change) AS skill_change,
-					SUM(hlstats_Players_History.skill_change) AS last_skill_change,
-					SUM(hlstats_Players_History.kills) AS kills,
-					SUM(hlstats_Players_History.deaths) AS deaths,
-					ROUND(SUM(hlstats_Players_History.kills) / IF(SUM(hlstats_Players_History.deaths) = 0, 1, SUM(hlstats_Players_History.deaths)), 2) AS kpd,
-					SUM(hlstats_Players_History.headshots) AS headshots,
-					ROUND(SUM(hlstats_Players_History.headshots) / SUM(hlstats_Players_History.kills), 2) AS hpk,
-					IFNULL(ROUND((SUM(hlstats_Players_History.hits) / SUM(hlstats_Players_History.shots) * 100), 1), 0) AS acc,
+					period.connection_time,
+					period.skill,
+					period.skill AS skill_change,
+					period.skill AS last_skill_change,
+					period.kills,
+					period.deaths,
+					ROUND(period.kills / IF(period.deaths = 0, 1, period.deaths), 2) AS kpd,
+					period.headshots,
+					ROUND(period.headshots / period.kills, 2) AS hpk,
+					IFNULL(ROUND((period.hits / period.shots * 100), 1), 0) AS acc,
 					activity
 				FROM
-					hlstats_Players_History
+					(
+						SELECT
+							playerId,
+							SUM(connection_time) AS connection_time,
+							SUM(skill_change) AS skill,
+							SUM(kills) AS kills,
+							SUM(deaths) AS deaths,
+							SUM(headshots) AS headshots,
+							SUM(hits) AS hits,
+							SUM(shots) AS shots
+						FROM
+							hlstats_Players_History
+						WHERE
+							game = '$game'
+							AND eventTime >= COALESCE(DATE(FROM_UNIXTIME($minEvent)) - INTERVAL 1 DAY, '1000-01-01')
+							AND eventTime <= COALESCE(DATE(FROM_UNIXTIME($maxEvent)) + INTERVAL 1 DAY, '9999-12-31')
+							AND UNIX_TIMESTAMP(eventTime) >= $minEvent
+							AND UNIX_TIMESTAMP(eventTime) <= $maxEvent
+						GROUP BY
+							playerId
+						HAVING
+							SUM(kills) >= $minkills
+					) AS period
 				INNER JOIN
 					hlstats_Players
 				ON
-					hlstats_Players_History.playerId = hlstats_Players.playerId
+					period.playerId = hlstats_Players.playerId
 				WHERE
-					hlstats_Players_History.game = '$game'
-					AND hlstats_Players.hideranking = 0
+					hlstats_Players.hideranking = 0
 					AND activity > 0
-					AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) >= $minEvent
-					AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) <= $maxEvent
-				GROUP BY
-					hlstats_Players_History.playerId
-				HAVING
-					SUM(hlstats_Players_History.kills) >= $minkills
 				ORDER BY
 					$table->sort $table->sortorder,
 					$table->sort2 $table->sortorder,
