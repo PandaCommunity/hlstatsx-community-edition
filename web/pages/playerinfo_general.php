@@ -657,20 +657,19 @@ For support and installation notes visit http://www.hlxcommunity.com
 						<?php
 							if ($g_options['modrewrite'] == 0)
 							{
-								$imglink = $siteurlneo.'sig.php?player_id='.$player.'&amp;background='.$g_options['sigbackground'];
+								$previewlink = 'sig.php?player_id='.$player.'&amp;background='.$g_options['sigbackground'];
+								$imglink = $siteurlneo.$previewlink;
 								$jimglink = $siteurlneo.'sig.php?player_id='.$player.'&background='.$g_options['sigbackground'];
 							}
 							else
 							{
-								$imglink = $siteurlneo.'sig-'.$player.'-'.$g_options['sigbackground'].'.png';
+								$previewlink = 'sig-'.$player.'-'.$g_options['sigbackground'].'.png';
+								$imglink = $siteurlneo.$previewlink;
 								$jimglink = $imglink;
 							}
 							
-							echo "<img src=\"$imglink\" title=\"Copy &amp; Paste the whole URL below in your forum signature\" alt=\"forum sig image\"/>";
-							$script_path = (isset($_SERVER['SSL']) || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on")) ? 'https://' : 'http://';
-							$script_path .= $_SERVER['HTTP_HOST'];
-							$script_path .= str_replace('\\','/',dirname($_SERVER['PHP_SELF']));
-							$script_path = preg_replace('/\/$/','',$script_path);
+							echo "<img src=\"$previewlink\" title=\"Copy &amp; Paste the whole URL below in your forum signature\" alt=\"forum sig image\"/>";
+							$script_path = rtrim($siteurlneo, '/');
 						?>
 						<br /><br />
 						<script type="text/javascript">
