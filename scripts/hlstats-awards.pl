@@ -361,7 +361,7 @@ sub BuildAwardAggregates
 			kind CHAR(1), game VARCHAR(32), code VARCHAR(128), playerId INT UNSIGNED,
 			globalValue DECIMAL(30,0), dailyValue DECIMAL(30,0),
 			INDEX (kind, game, code)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 	");
 	&doQuery("
 		CREATE TEMPORARY TABLE hlstats_award_frags AS

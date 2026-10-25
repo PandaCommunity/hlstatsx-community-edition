@@ -2,10 +2,10 @@
 
 -- This file is only needed for new installations.
 
-SET @DBVERSION="89";
+SET @DBVERSION="90";
 SET @VERSION="1.7.0";
 
-ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS `geoLiteCity_Blocks` (
   `startIpNum` bigint(11) unsigned NOT NULL default '0',
   `endIpNum` bigint(11) unsigned NOT NULL default '0',
   `locId` bigint(11) unsigned NOT NULL default '0'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS `geoLiteCity_Location` (
   `latitude` decimal(14,4) default NULL,
   `longitude` decimal(14,4) default NULL,
   PRIMARY KEY  (`locId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Actions` (
   PRIMARY KEY  (`id`),
   UNIQUE KEY `gamecode` (`code`,`game`,`team`),
   KEY `code` (`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Actions`
@@ -807,7 +807,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Awards` (
   `g_winner_count` int(10) unsigned default NULL,  
   PRIMARY KEY  (`awardId`),
   UNIQUE KEY `code` (`game`,`awardType`,`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Awards`
@@ -1788,7 +1788,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Clans` (
   PRIMARY KEY  (`clanId`),
   UNIQUE KEY `tag` (`game`,`tag`),
   KEY `game` (`game`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -1802,7 +1802,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_ClanTags` (
   `position` enum('EITHER','START','END') NOT NULL default 'EITHER',
   PRIMARY KEY  (`id`),
   UNIQUE KEY `pattern` (`pattern`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_ClanTags`
@@ -1849,7 +1849,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Countries` (
   `flag` varchar(16) NOT NULL,
   `name` varchar(50) NOT NULL,
   PRIMARY KEY  (`flag`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Countries`
@@ -2118,7 +2118,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Admin` (
   `playerName` varchar(64) NOT NULL default '',
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2137,7 +2137,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_ChangeName` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
 -- --------------------------------------------------------
@@ -2156,7 +2156,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_ChangeRole` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2174,7 +2174,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_ChangeTeam` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2197,7 +2197,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Chat` (
   KEY `idx_chat_server_time` (`serverId`,`eventTime`,`id`,`playerId`),
   KEY `idx_player_time` (`playerId`,`eventTime`),
   FULLTEXT KEY `message` (`message`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2219,7 +2219,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Connects` (
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`),
   KEY `ipAddress_playerId` (`ipAddress`,`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2236,7 +2236,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Disconnects` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2253,7 +2253,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Entries` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2287,7 +2287,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Frags` (
   KEY `map_killer_headshot_server` (`map`,`killerId`,`headshot`,`serverId`),
   KEY `weapon_killer_headshot_server` (`weapon`,`killerId`,`headshot`,`serverId`),
   KEY `killerRole` (`killerRole`(8))
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2305,7 +2305,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Latency` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2328,7 +2328,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_PlayerActions` (
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`),
   KEY `actionId` (`actionId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2356,7 +2356,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_PlayerPlayerActions` (
   KEY `playerId` (`playerId`),
   KEY `actionId` (`actionId`),
 	KEY `victimId` (`victimId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2375,7 +2375,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Rcon` (
   `command` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2400,7 +2400,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Statsme` (
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`),
   KEY `weapon` (`weapon`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2426,7 +2426,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Statsme2` (
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`),
   KEY `weapon` (`weapon`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2444,7 +2444,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_StatsmeLatency` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2462,7 +2462,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_StatsmeTime` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2483,7 +2483,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Suicides` (
   PRIMARY KEY  (`id`),
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2503,7 +2503,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_TeamBonuses` (
   KEY `eventTime` (`eventTime`),
   KEY `playerId` (`playerId`),
   KEY `actionId` (`actionId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2529,7 +2529,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Teamkills` (
   KEY `eventTime` (`eventTime`),
   KEY `killerId` (`killerId`),
   KEY `victimId` (`victimId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -2543,7 +2543,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Games` (
   `hidden` enum('0','1') NOT NULL default '0',
   `realgame` varchar(32) NOT NULL default 'hl2mp',
   PRIMARY KEY  (`code`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Games`
@@ -2585,7 +2585,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Games_Defaults` (
   `parameter` varchar(50) NOT NULL,
   `value` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`,`parameter`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Games_Defaults`
@@ -3265,7 +3265,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Games_Supported` (
   `code` varchar(32) NOT NULL,
   `name` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Games_Supported`
@@ -3320,7 +3320,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Heatmap_Config` (
   `cropy2` int(11) NOT NULL default '0',
   PRIMARY KEY  (`id`),
   UNIQUE KEY `gamemap` (`map`, `game`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Heatmap_Config`
@@ -3779,7 +3779,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_HostGroups` (
   `pattern` varchar(255) NOT NULL default '',
   `name` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1 ;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci AUTO_INCREMENT=1 ;
 
 -- --------------------------------------------------------
 
@@ -3813,7 +3813,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Livestats` (
   `skill_change` int(10) NOT NULL default '0',
   `skill` int(10) NOT NULL default '0',
   PRIMARY KEY  (`player_id`)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE `hlstats_Maps_Counts` (
   `rowId` int(11) NOT NULL auto_increment,
@@ -3823,14 +3823,14 @@ CREATE TABLE `hlstats_Maps_Counts` (
   `headshots` int(11) NOT NULL,
   PRIMARY KEY  (`game`,`map`),
   INDEX ( `rowId` )
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `hlstats_Mods_Defaults` (
   `code` varchar(32) NOT NULL,
   `parameter` varchar(50) NOT NULL,
   `value` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`,`parameter`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Mods_Defaults`
@@ -3879,7 +3879,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Mods_Supported` (
   `code` varchar(32) NOT NULL,
   `name` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Mods_Supported`
@@ -3904,7 +3904,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Options` (
   `opttype` TINYINT NOT NULL DEFAULT '1',
   PRIMARY KEY  (`keyname`),
   INDEX ( `opttype` )
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Options`
@@ -3986,7 +3986,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Options_Choices` (
   `isDefault` tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (`keyname`,`value`),
   KEY `keyname` (`keyname`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
 INSERT INTO `hlstats_Options_Choices` (`keyname`, `value`, `text`, `isDefault`) VALUES
@@ -4108,7 +4108,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_PlayerNames` (
   `hits` int(11) unsigned NOT NULL default '0',
   PRIMARY KEY  (`playerId`,`name`),
   KEY `name16` (`name`(16))
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Table structure for table `hlstats_Players`
@@ -4156,7 +4156,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players` (
   KEY `kills` (`kills`),
   KEY `hideranking` (`hideranking`),
   KEY `game_skill_rank` (`game`,`hideranking`,`skill`,`kills`,`deaths`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -4172,7 +4172,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_Awards` (
   `game` varchar(32) NOT NULL,
   PRIMARY KEY  (`awardTime`,`awardId`,`playerId`,`game`),
   KEY `player_award_game` (`playerId`,`awardId`,`game`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -4198,7 +4198,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_History` (
   `skill_change` int(11) NOT NULL default '0',
   UNIQUE KEY `eventTime` (`eventTime`,`playerId`,`game`),
   KEY `player_time` (`playerId`,`eventTime`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -4212,7 +4212,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_Ribbons` (
   `game` varchar(32) NOT NULL,
   KEY `game_player_ribbon` (`game`,`playerId`,`ribbonId`),
   KEY `ribbon_player` (`ribbonId`,`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -4227,7 +4227,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_PlayerUniqueIds` (
   `merge` int(10) unsigned default NULL,
   PRIMARY KEY  (`uniqueId`,`game`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -4245,7 +4245,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Ranks` (
   PRIMARY KEY  (`rankId`),
   UNIQUE KEY `rankgame` (`image`,`game`),
   KEY `game` (`game`(8))
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1 ;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci AUTO_INCREMENT=1 ;
 
 --
 -- Dumping data for table `hlstats_Ranks`
@@ -4414,7 +4414,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Ribbons` (
   `ribbonName` varchar(50) NOT NULL,
   PRIMARY KEY  (`ribbonId`),
   UNIQUE KEY `award` (`awardCode`,`awardCount`,`game`, `special`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Ribbons`
@@ -6237,7 +6237,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Roles` (
   `deaths` int(6) unsigned NOT NULL default '0',
   PRIMARY KEY  (`roleId`),
   UNIQUE KEY `gamecode` (`game`,`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Roles`
@@ -6453,7 +6453,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers` (
   `last_event` int(10) unsigned NOT NULL default '0',
   PRIMARY KEY  (`serverId`),
   UNIQUE KEY `addressport` (`address`,`port`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci PACK_KEYS=0;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci PACK_KEYS=0;
 
 -- --------------------------------------------------------
 
@@ -6468,7 +6468,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers_Config` (
   `serverConfigId` int(11) unsigned NOT NULL auto_increment,
   PRIMARY KEY  (`serverId`,`parameter`),
   KEY `serverConfigId` (`serverConfigId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -6481,7 +6481,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers_Config_Default` (
   `value` varchar(128) NOT NULL,
   `description` mediumtext,
   PRIMARY KEY  (`parameter`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Servers_Config_Default`
@@ -6537,7 +6537,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers_VoiceComm` (
   `serverType` tinyint(4) NOT NULL default '0',
   PRIMARY KEY  (`serverId`),
   UNIQUE KEY `address` (`addr`,`UDPPort`,`queryPort`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -6556,7 +6556,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_server_load` (
   `fps` varchar(10) NOT NULL default '0',
   KEY `server_timestamp` (`server_id`,`timestamp`),
   KEY `timestamp` (`timestamp`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -6575,7 +6575,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Teams` (
   `playerlist_index` tinyint(3) unsigned NOT NULL default '0',
   PRIMARY KEY  (`teamId`),
   UNIQUE KEY `gamecode` (`game`,`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Teams`
@@ -6666,7 +6666,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Trend` (
   `max_slots` int(11) NOT NULL default '0',
   KEY `game` (`game`),
   KEY `timestamp` (`timestamp`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -6680,7 +6680,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Users` (
   `acclevel` int(11) NOT NULL default '0',
   `playerId` int(11) NOT NULL default '0',
   PRIMARY KEY  (`username`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Users`
@@ -6706,7 +6706,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Weapons` (
   UNIQUE KEY `gamecode` (`game`,`code`),
   KEY `code` (`code`),
   KEY `modifier` (`modifier`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `hlstats_Weapons`
