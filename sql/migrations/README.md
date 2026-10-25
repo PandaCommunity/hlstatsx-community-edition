@@ -1,78 +1,81 @@
 # Database upgrades
 
 `sql/install.sql` is **only for an empty database**. Never import it over an
-existing installation. It includes current indexes and records migrations already
-incorporated in the fresh schema.
+existing installation. It includes the current schema and sets
+`hlstats_Options.dbversion` to **88**; no additional migrations are needed.
 
 ## Existing installations
 
-There are two upgrade generations; they must not be mixed:
+Use the existing **HLX:CE Database Updater** (`hlstats.php?mode=updater`).
+It runs consecutive `web/updater/<number>.php` files after the database's recorded
+`dbversion`, including updates 83–88 below. There is no separate SQL import step.
+Older installations must follow any historical prerequisites reported by the
+updater. The `2019_*.sql` files in this directory are historical patches, not a
+sequence to glob-import.
 
-1. **Legacy:** `web/pages/updater.php` runs consecutive `web/updater/<number>.php`
-   files using `hlstats_Options.dbversion`. Follow its existing upgrade procedure
-   through **82** first. Older pre-1.6.2 installations require the historical SQL
-   upgrade files as directed by that updater. The `2019_*.sql` files here are
-   historical patches, not part of the new migration sequence; do not glob-import
-   this directory or assume those patches are unapplied.
-2. **Post-82:** apply the pending files listed below manually, in order. The
-   `hlstats_SchemaMigrations` ledger tracks their full filenames independently of
-   `dbversion`; do not increment `dbversion` for these SQL migrations.
-
-| Order | Migration | Effect |
+| Database version | Update | Effect |
 | --- | --- | --- |
-| 1 | `2026_10_23_1000_query_indexes.sql` | Event/profile lookup and graph time-order indexes |
-| 2 | `2026_10_23_1005_chat_pagination.sql` | Cover global chat's per-server date/id candidate prefixes; retain the compact server key for fast legacy totals (which may include orphaned-player messages) |
-| 3 | `2026_10_23_1012_retained_dimensions.sql` | Replace Frags map/weapon prefixes with covering dimension indexes |
-| 4 | `2026_10_23_1030_player_ranking.sql` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
-| 5 | `2026_10_23_1030_search_ip_index.sql` | Covering IP-prefix/player lookup for connection searches and resolver |
-| 6 | `2026_10_23_1100_event_retention.sql` | Time-leading event indexes for bounded retention deletes |
+| 83 | `web/updater/83.php` | Event/profile lookup and graph time-order indexes |
+| 84 | `web/updater/84.php` | Cover global chat's per-server date/id candidate prefixes; retain the compact server key for fast legacy totals (which may include orphaned-player messages) |
+| 85 | `web/updater/85.php` | Replace Frags map/weapon prefixes with covering dimension indexes |
+| 86 | `web/updater/86.php` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
+| 87 | `web/updater/87.php` | Covering IP-prefix/player lookup for connection searches and resolver |
+| 88 | `web/updater/88.php` | Time-leading event indexes for bounded retention deletes |
 
 Before each deployment:
 
 - Back up the database and verify restoration. Test the upgrade on a recent copy,
   including any locally customized indexes. Check free disk space for table rebuilds.
-- Confirm `SELECT value FROM hlstats_Options WHERE keyname = 'dbversion';` is 82.
-- Inspect `SHOW TABLES LIKE 'hlstats_SchemaMigrations';`. If present, run
-  `SELECT filename, applied_at FROM hlstats_SchemaMigrations ORDER BY filename;`.
-  **Skip any file already recorded.** A fresh install records all included files.
 - Pause the daemon, awards/resolver jobs, and web access for the migration window.
   Most application tables are MyISAM: ALTER can copy the entire table and block
   readers/writers. Index creation is not a zero-downtime operation. Measure the
   maintenance window on your copy; do not manually trigger a production upgrade
   without the operator's approval.
-- From the repository root, execute **each pending file separately**, using your
-  MySQL/MariaDB client and credentials (socket/option-file authentication is also
-  fine). For example, substituting your own database/user:
+- Deploy the web files including `web/updater/`, keeping the updater accessible
+  only to the operator. Ensure the web database account has ALTER privileges and
+  that PHP/proxy request timeouts allow the measured upgrade duration.
+- Open the Database Updater once and inspect its output. Updates 83–88 advance
+  `dbversion` only after their statements succeed. Do not run concurrent upgrades.
+- Confirm `SELECT value FROM hlstats_Options WHERE keyname = 'dbversion';` returns
+  **88**. Remove the deployed `web/updater/` folder as directed by the updater,
+  then check affected pages and ingestion before reopening access. Compare query
+  plans and results on representative data; small seed data cannot predict performance.
 
-  ```sh
-  mysql --user=hlstats --password --database=hlstatsx --show-warnings \
-    < sql/migrations/2026_10_23_1000_query_indexes.sql
-  ```
+### Databases that used the earlier db-fixes SQL files
 
-  Do **not** use `--force`, a wildcard, or a client configured to continue after
-  errors. Inspect the exit status/output and ledger after each file. The final
-  INSERT records completion only when all earlier statements succeeded.
-- Check affected pages and ingestion before reopening access. Compare query plans
-  and results on representative data; small seed data cannot predict performance.
+Updates 83–88 recognize each corresponding filename in an existing
+`hlstats_SchemaMigrations` table and skip that update's already-completed DDL.
+Missing updates run normally, even if the recorded files are not a consecutive
+prefix. The updater then advances `dbversion` through 88. It does not create or
+write the old ledger; an existing ledger is left intact as historical information.
+Future updates use only numbered updater files and `dbversion`.
+
+The six `2026_10_23_*.sql` files have been replaced by updates 83–88; do not apply
+copies from an older checkout. If an old manual file failed partway through and
+has no completion row, reconcile its partial DDL before running the updater.
 
 ### Failure and rollback
 
-DDL implicitly commits. A transaction cannot roll back a partly applied file,
+DDL implicitly commits. A transaction cannot roll back a partly applied update,
 especially on MyISAM. If a statement fails, keep writers paused and inspect
-`SHOW CREATE TABLE` / `SHOW INDEX` for each affected table. Do not rerun the whole
-file blindly: completed ADD/DROP operations will fail on replay. Reconcile custom
-indexes, execute only the remaining statements in order, and run the final ledger
-INSERT only after every intended change is verified. Preserve the original file;
-record any recovery commands in the deployment log.
+`SHOW CREATE TABLE` / `SHOW INDEX` for each affected table. The failing update's
+version is not recorded, but earlier DDL may already be committed. Do not rerun
+the updater blindly: completed ADD/DROP operations will fail on replay. Reconcile
+custom indexes, execute only the failing update's remaining statements in order,
+and execute its final `dbversion` UPDATE only after every intended change is
+verified. Then reopen the updater to continue with subsequent versions. Preserve
+the original updater files and record recovery commands in the deployment log.
 
-For the first migration, application SQL is unchanged; rolling back PHP does
+For update 83, application SQL is unchanged; rolling back PHP does
 not require removing the indexes. If the schema itself must be restored, use the
 verified backup or explicitly reverse the ALTERs during maintenance (restore the
-two dropped single-column keys as well as removing the added keys), then remove
-that migration's ledger row. There is no automatic down migration.
+two dropped single-column keys as well as removing the added keys). There is no
+automatic down migration. Do not lower `dbversion` unless all subsequent schema
+changes are also reversed. If reverting an old manually applied change, reconcile
+its historical ledger row too, so a future upgrade does not incorrectly skip it.
 
-For the player-ranking migration, restore `game_hideranking(game,hideranking)`
-and drop `game_skill_rank` before removing its ledger row. It does not change
+For update 86, restore `game_hideranking(game,hideranking)`
+and drop `game_skill_rank` if reversing its schema change. It does not change
 ranking semantics or require simultaneous PHP/Perl deployment. The wider key
 adds storage and ingestion cost; benchmark on your copy. It covers exact rank
 and population scans, not computed K:D/accuracy/headshot ordering. Deep offsets
@@ -81,7 +84,7 @@ arbitrary page navigation and exact totals are retained.
 
 ### Retention job
 
-Apply `2026_10_23_1100_event_retention.sql` before using the batched pruning job;
+Complete update **88** before using the batched pruning job;
 without the time-leading keys each batch can scan and sort the remaining table.
 The job freezes its cutoffs once, deletes oldest eligible timestamps in batches
 of at most 1,000 rows, and yields 10 ms between full batches. It drains the backlog;
@@ -100,7 +103,7 @@ Global OPTIMIZE behavior is unchanged and can still lock tables independently.
 
 ### Retained map/weapon dimensions (PAN-18)
 
-The second migration replaces two indexes, rather than adding redundant candidates.
+Update 85 replaces two indexes, rather than adding redundant candidates.
 The full dimension, killer, headshot and server keys cover request-local leaderboard
 aggregation and server-game totals. They do not introduce lifetime counters, cached
 summaries, expiry jobs, or per-frag application writes. Player/server lookup keys
@@ -124,17 +127,16 @@ synthetic data exaggerates some selectivity gains; no concurrent-load claim is m
 
 ## Adding a migration
 
-- Use a unique UTC `YYYY_MM_DD_HHMM_<description>.sql` filename. Coordinate parallel
-  branches targeting `db-fixes`; rebase and append to the table above in dependency
-  order before merging. Never modify a migration already applied by operators.
+- Add the next consecutive `web/updater/<number>.php` file, guarded by
+  `IN_UPDATER`, using the existing `$db` connection. Coordinate numbers across
+  parallel branches before integration; do not introduce another migration ledger.
+  Never modify an update already applied by operators.
 - Use MySQL 5.7+ / MariaDB-compatible SQL, not MariaDB-only `ADD INDEX IF NOT EXISTS`.
-  Include prerequisites and operational/rollback notes. Do not change historical
-  updater numbers or install data merely to record a new SQL migration.
-- End with an INSERT of the exact filename into `hlstats_SchemaMigrations`, after
-  all changes succeed. Do not use `INSERT IGNORE` to conceal duplicate application.
-  The ledger table definition is in the first migration and `install.sql`.
-- Make the same schema change in `sql/install.sql` and append the filename to its
-  ledger seed. Verify both a fresh import and an upgraded populated database.
+  Include prerequisites and operational/rollback notes. Do not renumber historical
+  updates or suppress SQL errors.
+- Update `hlstats_Options.dbversion` at the end, after all statements succeed.
+- Make the same schema/data change in `sql/install.sql` and advance its
+  `@DBVERSION`. Verify both a fresh import and an upgraded populated database.
   Data migrations must likewise leave fresh and upgraded installations equivalent.
 - Benchmark indexes against their actual consumers; a composite can replace its
   redundant left-prefix key, but must not remove a time-leading purge key. Account
