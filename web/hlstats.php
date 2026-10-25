@@ -78,7 +78,8 @@ if (!empty($_GET['logout']) && $_GET['logout'] == '1') {
 // Several stuff added by Malte Bayer
 global $scripttime, $siteurlneo;
 $scripttime = microtime(true);
-$siteurlneo='http://'.$_SERVER['HTTP_HOST'].substr($_SERVER['PHP_SELF'],0,strpos($_SERVER['PHP_SELF'],strrchr($_SERVER['PHP_SELF'],'/'))+1);
+$siteurlneo = (isset($_SERVER['SSL']) || (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')) ? 'https://' : 'http://';
+$siteurlneo.=$_SERVER['HTTP_HOST'].substr($_SERVER['PHP_SELF'],0,strpos($_SERVER['PHP_SELF'],strrchr($_SERVER['PHP_SELF'],'/'))+1);
 $siteurlneo=str_replace('\\','/',$siteurlneo);
 
 // Several Stuff end
