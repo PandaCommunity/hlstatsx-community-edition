@@ -2,8 +2,10 @@
 
 -- This file is only needed for new installations.
 
-SET @DBVERSION="88";
+SET @DBVERSION="89";
 SET @VERSION="1.7.0";
+
+ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 

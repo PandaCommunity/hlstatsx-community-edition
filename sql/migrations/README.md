@@ -2,13 +2,13 @@
 
 `sql/install.sql` is **only for an empty database**. Never import it over an
 existing installation. It includes the current schema and sets
-`hlstats_Options.dbversion` to **88**; no additional migrations are needed.
+`hlstats_Options.dbversion` to **89**; no additional migrations are needed.
 
 ## Existing installations
 
 Use the existing **HLX:CE Database Updater** (`hlstats.php?mode=updater`).
 It runs consecutive `web/updater/<number>.php` files after the database's recorded
-`dbversion`, including updates 83–88 below. There is no separate SQL import step.
+`dbversion`, including updates 83–89 below. There is no separate SQL import step.
 Older installations must follow any historical prerequisites reported by the
 updater. The `2019_*.sql` files in this directory are historical patches, not a
 sequence to glob-import.
@@ -21,6 +21,7 @@ sequence to glob-import.
 | 86 | `web/updater/86.php` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
 | 87 | `web/updater/87.php` | Covering IP-prefix/player lookup for connection searches and resolver |
 | 88 | `web/updater/88.php` | Time-leading event indexes for bounded retention deletes |
+| 89 | `web/updater/89.php` | Normalize the database default, base-table defaults and text columns to `utf8mb4_unicode_ci` |
 
 Before each deployment:
 
@@ -34,10 +35,10 @@ Before each deployment:
 - Deploy the web files including `web/updater/`, keeping the updater accessible
   only to the operator. Ensure the web database account has ALTER privileges and
   that PHP/proxy request timeouts allow the measured upgrade duration.
-- Open the Database Updater once and inspect its output. Updates 83–88 advance
+- Open the Database Updater once and inspect its output. Updates 83–89 advance
   `dbversion` only after their statements succeed. Do not run concurrent upgrades.
 - Confirm `SELECT value FROM hlstats_Options WHERE keyname = 'dbversion';` returns
-  **88**. Remove the deployed `web/updater/` folder as directed by the updater,
+  **89**. Remove the deployed `web/updater/` folder as directed by the updater,
   then check affected pages and ingestion before reopening access. Compare query
   plans and results on representative data; small seed data cannot predict performance.
 
@@ -46,7 +47,7 @@ Before each deployment:
 Updates 83–88 recognize each corresponding filename in an existing
 `hlstats_SchemaMigrations` table and skip that update's already-completed DDL.
 Missing updates run normally, even if the recorded files are not a consecutive
-prefix. The updater then advances `dbversion` through 88. It does not create or
+prefix. The updater then advances `dbversion` through 89. It does not create or
 write the old ledger; an existing ledger is left intact as historical information.
 Future updates use only numbered updater files and `dbversion`.
 
@@ -81,6 +82,56 @@ adds storage and ingestion cost; benchmark on your copy. It covers exact rank
 and population scans, not computed K:D/accuracy/headshot ordering. Deep offsets
 and period aggregation still require work proportional to the qualifying data;
 arbitrary page navigation and exact totals are retained.
+
+### Collation normalization (update 89)
+
+Older installs can retain `utf8mb4_general_ci` or other collations even though
+the application creates temporary tables using `utf8mb4_unicode_ci`. Changing
+only the database default or PHP connection settings does not convert stored
+columns, and joins can fail with error 1267 (illegal mix of collations).
+
+Update 89 explicitly selects `utf8mb4` / `utf8mb4_unicode_ci`, matching
+`web/config.php` and fresh installs rather than version-dependent server defaults.
+Keep `DB_CHARSET` and `DB_COLLATE` set to those values. It changes the selected
+database's default and converts every base table whose default or any text column
+differs, including custom tables and an existing historical migration ledger.
+Use a dedicated HLstatsX database. Views are not altered; binary columns are not
+text columns and retain their binary semantics. Already-normalized tables are
+skipped, including on retry after a partial conversion.
+
+The updater account needs ALTER permission on the database and all affected
+tables. Rehearse with a backup: conversions can rebuild large event tables,
+change sorting/comparison results, encounter duplicate unique keys under the new
+comparison rules, or exceed index limits when expanding an older charset. MySQL
+may widen text types to preserve their character capacity. Do not suppress these
+errors or delete conflicting data to force success. Resolve the reported schema
+or data conflict before retrying; `dbversion` remains at 88 until all conversions
+succeed. Rollback requires the verified backup or the original per-column/table/
+database definitions; there is no universal reverse collation.
+
+After upgrading, the following queries should return no rows (run with the
+HLstatsX database selected):
+
+```sql
+SELECT SCHEMA_NAME, DEFAULT_COLLATION_NAME
+FROM information_schema.SCHEMATA
+WHERE SCHEMA_NAME = DATABASE()
+  AND DEFAULT_COLLATION_NAME <> 'utf8mb4_unicode_ci';
+
+SELECT TABLE_NAME, TABLE_COLLATION
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+  AND TABLE_COLLATION <> 'utf8mb4_unicode_ci';
+
+SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND COLLATION_NAME IS NOT NULL
+  AND COLLATION_NAME <> 'utf8mb4_unicode_ci'
+  AND TABLE_NAME IN (
+      SELECT TABLE_NAME FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+  );
+```
 
 ### Retention job
 
