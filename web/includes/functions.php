@@ -58,8 +58,12 @@ function csrf_verify_request(): void
 	}
 }
 
-function checkValidGame(string $gameStr, array $allowedGames, ?string &$retError) : bool
+function checkValidGame(string $gameStr, ?array $allowedGames, ?string &$retError) : bool
 {
+	if (empty($allowedGames)) {
+		internal_error('Failed to get list of allowed games.', true, 'Game list unavailable');
+	}
+
 	// Not object and array
 	if (!is_string($gameStr)) {
 		$retError = 'Invalid game parameter.';
@@ -75,11 +79,6 @@ function checkValidGame(string $gameStr, array $allowedGames, ?string &$retError
 	// Path traversal and XSS fixes
 	if (!preg_match('/^[a-zA-Z0-9_]+$/', $gameStr)) {
 		$retError = 'Invalid game code.';
-		return false;
-	}
-
-	if (!is_array($allowedGames) || empty($allowedGames)) {
-		$retError = 'Failed to get list of allowed games.';
 		return false;
 	}
 
@@ -214,6 +213,33 @@ function timestamp_to_str($seconds)
 	$dtT = new \DateTime("@$seconds");
 
 	return $dtF->diff($dtT)->format('%ad&nbsp;%H:%I:%Sh');
+}
+
+/**
+ * Report an internal failure without logging raw diagnostics (which may contain
+ * credentials or query values). Callers may supply a safe category/error code.
+ */
+function internal_error(string $message, bool $exit = true, string $logMessage = 'Internal application error'): void
+{
+    $sources = [];
+    foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+        if (isset($frame['file'])) {
+            $sources[] = basename($frame['file']) . ':' . $frame['line'];
+        }
+    }
+    error_log('HLstatsX: ' . $logMessage . ' at ' . implode(' <- ', $sources));
+
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/html; charset=utf-8');
+    }
+
+    error(
+        defined('DISPLAY_INTERNAL_ERRORS') && DISPLAY_INTERNAL_ERRORS === true
+            ? $message
+            : 'An internal server error occurred. Please try again later.',
+        $exit
+    );
 }
 
 /**

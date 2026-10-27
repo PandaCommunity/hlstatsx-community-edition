@@ -230,9 +230,10 @@ class DB_mysql
 
 		$this->querycount++;
 
-		if ( defined('DB_DEBUG') && DB_DEBUG == true )
+		if ( defined('DB_DEBUG') && DB_DEBUG == true
+			&& defined('DISPLAY_INTERNAL_ERRORS') && DISPLAY_INTERNAL_ERRORS === true )
 		{
-			echo "<p><pre>$query</pre><hr /></p>";
+			echo '<p><pre>' . eHtml($query) . '</pre><hr /></p>';
 		}
 
 		if ( $this->last_result )
@@ -293,14 +294,15 @@ class DB_mysql
 	{
 		$errno = $this->link ? mysqli_errno($this->link) : mysqli_connect_errno();
 		$error = $this->link ? mysqli_error($this->link) : mysqli_connect_error();
-		error(
+		internal_error(
 			"<b>Database Error</b><br />\n<br />\n" .
 			"<i>Server Address:</i> $this->db_addr<br />\n" .
 			"<i>Server Username:</i> $this->db_user<br /><br />\n" .
 			"<i>Error Diagnostic:</i><br />\n$message<br /><br />\n" .
 			"<i>Server Error:</i> ($errno) $error<br /><br />\n" .
 			"<i>Last SQL Query:</i><br />\n<pre style=\"font-size:2px;\">$this->last_query</pre>",
-			$exit
+			$exit,
+			'Database failure (MySQL error ' . $errno . ')'
 		);
 	}
 }

@@ -166,7 +166,7 @@ class Table
 <?php
 		if ($totalwidth != 100)
 		{
-			error("Warning: Column widths do not add to 100%! (=$totalwidth%)", false);
+			internal_error("Warning: Column widths do not add to 100%! (=$totalwidth%)", false, 'Invalid table column widths');
 		}
 
 		$rank = ($this->page - 1) * $this->numperpage + 1;
@@ -215,7 +215,7 @@ class Table
 <?php
 		if ($totalwidth != 100)
 		{
-			error("Warning: Column widths do not add to 100%! (=$totalwidth%)", false);
+			internal_error("Warning: Column widths do not add to 100%! (=$totalwidth%)", false, 'Invalid table column widths');
 		}
 
 		$rank = ($this->page - 1) * $this->numperpage + 1;

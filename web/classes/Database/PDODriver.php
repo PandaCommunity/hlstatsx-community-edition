@@ -36,8 +36,11 @@
             try {
                 $this->pdo = new PDO($dsn, $options->getUser(), $options->getPass(), $driverOptions);
             } catch (PDOException $e) {
-                $this->logger->error('Database connection failed: ' . $e->getMessage());
-                die('Database connection failed: ' . $e->getMessage());
+                \internal_error(
+                    'Database connection failed: ' . $e->getMessage(),
+                    true,
+                    'Database connection failed (PDO error ' . $e->getCode() . ')'
+                );
             }
         }
 

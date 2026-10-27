@@ -110,7 +110,6 @@
 				$rc = $ve_info->Request();
 				if ($rc) {
 					$ve_channels = 'err';
-					$ve_slots = $ve_info->m_error;
 				} else {
 					$ve_channels = $ve_info->m_channelcount;
 					$ve_slots = $ve_info->m_clientcount.'/'.$ve_info->m_maxclients;
@@ -132,7 +131,13 @@
 					<?php echo $ve_channels; ?>
 				</td>
 				<td style="text-align:right;">
-					<?php echo eHtml($ve_slots); ?>
+					<?php
+					if ($rc) {
+						internal_error('No Ventrilo: ' . $ve_info->m_error, false, 'Ventrilo status request failed');
+					} else {
+						echo eHtml($ve_slots);
+					}
+					?>
 				</td>
 				<td>
 					<?php echo $vent_server['descr']; ?>

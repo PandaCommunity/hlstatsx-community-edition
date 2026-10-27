@@ -73,7 +73,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	if (class_exists($db_classname)) {
 		$db = new $db_classname(DB_ADDR, DB_USER, DB_PASS, DB_NAME, DB_PCONNECT);
 	} else {
-		error('Database class does not exist.  Please check your config.php file for DB_TYPE');
+		internal_error('Database class does not exist.  Please check your config.php file for DB_TYPE', true, 'Unsupported DB_TYPE configuration');
 	}
 
 	$container = require ROOT_PATH . '/bootstrap.php';
@@ -81,7 +81,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 	$g_options = $optionService->getAllOptions();
 	if (empty($g_options)) {
-		error('Warning: Could not find any options in the database. Check HLStats configuration.');
+		internal_error('Warning: Could not find any options in the database. Check HLStats configuration.', true, 'Database options unavailable');
 	}
 
 	$width = 500;

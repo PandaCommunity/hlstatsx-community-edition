@@ -82,12 +82,12 @@ if (class_exists($db_classname))
 }
 else
 {
-	error('Database class does not exist.  Please check your config.php file for DB_TYPE');
+	internal_error('Database class does not exist.  Please check your config.php file for DB_TYPE', true, 'Unsupported DB_TYPE configuration');
 }
 
 $g_options = $optionService->getAllOptions();
 if (empty($g_options)) {
-	error('Warning: Could not find any options in the database. Check HLStats configuration.');
+	internal_error('Warning: Could not find any options in the database. Check HLStats configuration.', true, 'Database options unavailable');
 }
 
 @error_reporting(E_ALL ^ E_NOTICE);

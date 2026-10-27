@@ -34,7 +34,7 @@
     $allowedGames = $gameRepo->getGameCodes();
 
     $retError = "";
-    if (!checkValidGame($game, $allowedGames ?? [], $retError)) {
+    if (!checkValidGame($game, $allowedGames, $retError)) {
         print $retError;
         exit;
     }

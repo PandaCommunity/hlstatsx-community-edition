@@ -137,7 +137,7 @@ if ( class_exists($db_classname) )
 }
 else
 {
-	error('Database class does not exist.  Please check your config.php file for DB_TYPE');
+	internal_error('Database class does not exist.  Please check your config.php file for DB_TYPE', true, 'Unsupported DB_TYPE configuration');
 }
 
 $container = require ROOT_PATH . '/bootstrap.php';
@@ -145,7 +145,7 @@ $optionService = $container->get(\Service\OptionService::class);
 
 $g_options = $optionService->getAllOptions();
 if (empty($g_options)) {
-	error('Warning: Could not find any options in the database. Check HLStats configuration.');
+	internal_error('Warning: Could not find any options in the database. Check HLStats configuration.', true, 'Database options unavailable');
 }
 
 $cacheCleaner = $container->get(\Cache\CacheCleaner::class);
@@ -252,8 +252,7 @@ if ( file_exists(PAGE_PATH . "/$mode.php") )
 }
 else
 {
-	header('HTTP/1.1 404 File Not Found', false, 404);
-	error('Unable to find ' . PAGE_PATH . "/$mode.php");
+	internal_error('Unable to find ' . PAGE_PATH . "/$mode.php", true, 'Page file unavailable');
 	pageFooter();
 }
 
