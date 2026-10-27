@@ -9,9 +9,66 @@ existing installation. It includes the current schema and sets
 Use the existing **HLX:CE Database Updater** (`hlstats.php?mode=updater`).
 It runs consecutive `web/updater/<number>.php` files after the database's recorded
 `dbversion`, including updates 83–89 below. There is no separate SQL import step.
-Older installations must follow any historical prerequisites reported by the
-updater. The `2019_*.sql` files in this directory are historical patches, not a
-sequence to glob-import.
+The supported starting point is a **working database at version 82** (or a later
+completed update in 83–88). `dbversion` is the schema update number stored in
+`hlstats_Options`, not the MySQL/MariaDB version or the application release number.
+The updater refuses earlier starting versions before changing the schema.
+
+Stage older deployments to a verified version-82 installation separately, on a
+backup, using their appropriate historical release/tools. Simply changing the
+version label is not an upgrade. Historical numbered files are retained as
+reference, not a supported PHP-8.5 upgrade route: some old files use obsolete
+database APIs, and the numbered sequence alone does not establish every old
+schema prerequisite. In particular, `2019_02_22_0000.sql` adds Players `mmrank`
+(a matchmaking-rank field still selected by player profiles), and
+`2019_04_28_0007.sql` repairs zero-date defaults. Existing zero/partial-zero date
+rows may also need an operator-approved repair before DDL under strict SQL modes.
+These files are historical patches, **not a sequence to glob-import**. The fork
+does not invent rank values, delete events, or rewrite invalid dates for you.
+
+### Database compatibility
+
+The compatibility baseline is **MySQL 5.7** or **MariaDB 10.6**, using the latest
+patch release available for the chosen line. Prefer **MySQL 8.4 LTS** or
+**MariaDB 10.11 LTS** for maintained deployments. Legacy compatibility is not a
+recommendation to run an unmaintained server or a promise of vendor security fixes.
+
+Targeted checks used PHP 8.5 and these actual servers, not a MariaDB proxy for MySQL:
+
+| Server exercised | Upgrade/fresh install | Runtime checks |
+| --- | --- | --- |
+| MySQL 5.7.44 | 82–88 → 89, fresh 89, retry/no-op | Default strict modes, including ONLY_FULL_GROUP_BY |
+| MySQL 8.0.44 | Same | Same |
+| MySQL 8.4.8 | Same | Same |
+| MariaDB 10.6.24 | Same | Default strict modes |
+| MariaDB 10.11.19 | Same | Default strict modes |
+
+For every server, a populated fixture built from `origin/dev`'s install schema
+plus the actual updates 81/82 upgraded successfully. All 56 original table data
+hashes were preserved except the intended version label; fresh/upgraded schema
+definitions matched. Interrupted index creation and collation conversion resumed
+successfully. Conflict checks covered unique/prefix keys, NULL composite keys,
+custom indexes, textual foreign keys, zero dates and COMPACT InnoDB key limits.
+Runtime checks exercised 23 HTTP scenarios per server with content/DOM assertions,
+including asymmetric role/action totals and separate award identities sharing a
+display label. Another 25 broader frontend/in-game smoke requests per server
+checked SQL/fatal errors. The actual Perl awards/ribbon job produced independently
+checked weapon winners and ribbon ownership. MySQL SQL modes were not weakened.
+
+Normal runtime needs the usual SELECT/INSERT/UPDATE/DELETE grants, plus
+CREATE TEMPORARY TABLES for request-local and awards summaries. Ribbon publication
+also needs CREATE, DROP and ALTER on its live/build/old tables. Legacy role pages
+additionally require DROP because their existing cleanup uses `DROP TABLE IF
+EXISTS`, not `DROP TEMPORARY TABLE`: reserve `hlstats_Frags_as` / `_res` for those
+pages, never permanent custom tables. The updater's advisory lock does not
+coordinate with jobs; pause them for schema work.
+
+This is targeted compatibility evidence, not exhaustive game/daemon ingestion,
+production-scale rebuild, concurrency or performance coverage. Earlier patch
+releases, MariaDB before 10.6, MySQL before 5.7, other database products and every
+possible custom schema have not been qualified. MariaDB's ONLY_FULL_GROUP_BY
+mode is not the same implementation as MySQL's and was not the MariaDB test mode.
+Rehearse your own data, grants, SQL modes, row formats and server settings.
 
 | Database version | Update | Effect |
 | --- | --- | --- |
@@ -33,47 +90,61 @@ Before each deployment:
   maintenance window on your copy; do not manually trigger a production upgrade
   without the operator's approval.
 - Deploy the web files including `web/updater/`, keeping the updater accessible
-  only to the operator. Ensure the web database account has ALTER privileges and
+  only to the operator. The updater needs SELECT on **all** base tables in the
+  dedicated database, UPDATE on `hlstats_Options`, and ALTER on the database and
+  affected tables. Verify any additional engine/custom-DDL grants in rehearsal and
   that PHP/proxy request timeouts allow the measured upgrade duration.
 - Open the Database Updater once and inspect its output. Updates 83–89 advance
-  `dbversion` only after their statements succeed. Do not run concurrent upgrades.
+  `dbversion` only after their statements succeed. A database-scoped advisory lock
+  excludes another updater request; it does **not** stop daemon/jobs/web writers.
+  The read-only preflight runs before the first ALTER, including when resuming.
 - Confirm `SELECT value FROM hlstats_Options WHERE keyname = 'dbversion';` returns
   **89**. Remove the deployed `web/updater/` folder as directed by the updater,
   then check affected pages and ingestion before reopening access. Compare query
   plans and results on representative data; small seed data cannot predict performance.
 
-### Databases that used the earlier db-fixes SQL files
+### Existing, custom and partially applied indexes
 
-Updates 83–88 recognize each corresponding filename in an existing
-`hlstats_SchemaMigrations` table and skip that update's already-completed DDL.
-Missing updates run normally, even if the recorded files are not a consecutive
-prefix. The updater then advances `dbversion` through 89. It does not create or
-write the old ledger; an existing ledger is left intact as historical information.
-Future updates use only numbered updater files and `dbversion`.
+Updates 83–88 inspect the actual schema instead of trusting historical ledger
+filenames. An already-present required index must have the exact column order,
+prefix lengths, nonunique ascending BTREE definition and visibility. Matching
+indexes are retained; missing ones are added. An old key is dropped only when its
+definition matches the repository's known old key; an already-absent old key is
+accepted. An unexpected namesake stops the whole pending upgrade in preflight
+instead of overwriting a local customization. Extra keys under other names are
+left alone, even if redundant. Index names are compared case-insensitively.
 
-The six `2026_10_23_*.sql` files have been replaced by updates 83–88; do not apply
-copies from an older checkout. If an old manual file failed partway through and
-has no completion row, reconcile its partial DDL before running the updater.
+This makes a genuine partial 83–88 upgrade retryable. An existing
+`hlstats_SchemaMigrations` ledger remains historical data, not authority to skip
+missing DDL. It is neither created nor updated. The obsolete manual
+`2026_10_23_*.sql` files must not be applied from another checkout.
+
+Earlier unreleased branch-testing states are **not a separate supported migration
+path**, especially databases already labeled 89/90 under the discarded Unicode-ci
+policy. No recovery-only update 90 is provided. Restore the appropriate pre-branch
+backup or reconcile those experimental states explicitly; do not lower their
+version label and hope the normal upgrade reconstructs the original schema/data.
 
 ### Failure and rollback
 
 DDL implicitly commits. A transaction cannot roll back a partly applied update,
 especially on MyISAM. If a statement fails, keep writers paused and inspect
 `SHOW CREATE TABLE` / `SHOW INDEX` for each affected table. The failing update's
-version is not recorded, but earlier DDL may already be committed. Do not rerun
-the updater blindly: completed ADD/DROP operations will fail on replay. Reconcile
-custom indexes, execute only the failing update's remaining statements in order,
-and execute its final `dbversion` UPDATE only after every intended change is
-verified. Then reopen the updater to continue with subsequent versions. Preserve
-the original updater files and record recovery commands in the deployment log.
+version is not recorded, but earlier DDL may already be committed. Fix the reported
+cause (for example grants, disk space or a schema/data conflict), then reopen the
+updater: completed matching indexes and normalized tables are skipped. Do not
+manually advance `dbversion` to bypass a failure. A mismatched custom definition
+still requires an explicit operator decision. Preserve the original updater files
+and record recovery commands in the deployment log. Preflight is not a DDL
+transaction, comprehensive privilege checker or guarantee against later failures.
 
 For update 83, application SQL is unchanged; rolling back PHP does
 not require removing the indexes. If the schema itself must be restored, use the
 verified backup or explicitly reverse the ALTERs during maintenance (restore the
 two dropped single-column keys as well as removing the added keys). There is no
 automatic down migration. Do not lower `dbversion` unless all subsequent schema
-changes are also reversed. If reverting an old manually applied change, reconcile
-its historical ledger row too, so a future upgrade does not incorrectly skip it.
+changes are also reversed. Historical ledger entries do not override actual
+index inspection.
 
 For update 86, restore `game_hideranking(game,hideranking)`
 and drop `game_skill_rank` if reversing its schema change. It does not change
@@ -101,11 +172,32 @@ skipped, including on retry after a partial conversion.
 
 General-ci preserves distinct clan tags such as `[ß]` / `[SS]` and `[TM]` / `[™]`
 that Unicode-ci would collapse, violating the unique `(game,tag)` index. No clans
-are deleted, renamed or merged. The upgrade path assumes an installation from
-`dev`, not a database already migrated using an earlier revision of this branch.
+are deleted, renamed or merged. It also works across the selected MySQL/MariaDB
+lines, unlike MySQL-specific 0900 collations. It is a deliberate legacy comparison
+policy, not the most linguistically complete Unicode sort. Binary/case-sensitive
+collations would change application matching semantics rather than provide a safe
+drop-in fix. Keep one explicit policy for schema, connections and temporary tables.
 
-The updater account needs ALTER permission on the database and all affected
-tables. Rehearse with a backup: conversions can rebuild large event tables,
+Before **any** pending update's DDL, preflight checks the configured target,
+minimum server version, required index columns/definitions, `mmrank`, zero-date
+defaults and zero/partial-zero rows in tables that will be altered. For each table
+needing conversion it checks textual foreign keys, expression indexes, obvious
+COMPACT/REDUNDANT InnoDB text keys exceeding 767 bytes, and potential unique-key
+collisions under the target comparison. Collision checks respect prefix lengths
+and exclude rows with a NULL unique-key component. They report the table/key and
+stop; they do not choose which identity to keep. For example, source Unicode-ci
+can distinguish `s` / `ß`, which general-ci does not.
+
+These read-only scans/groupings can be expensive on large event tables and need
+their own maintenance-window budget. They are conservative checks for known
+blockers, not complete validation of arbitrary generated/check constraints,
+partitioning, key/row-size limits, other engine settings or encoding damage.
+Conversion trusts each column's declared charset; it does not repair mislabelled
+text/mojibake. A custom schema still needs a full rehearsal. No storage engine,
+row format, index prefix or user data is automatically changed to evade a blocker.
+
+The database default changes only after all selected tables convert; version 89
+is recorded last. Rehearse with a backup: conversions can rebuild large event tables,
 change sorting/comparison results, encounter duplicate unique keys under the new
 comparison rules, or exceed index limits when expanding an older charset. MySQL
 may widen text types to preserve their character capacity. Do not suppress these

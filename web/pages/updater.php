@@ -16,43 +16,36 @@
 	);
 	echo "<div class=\"warning\">\n" .
 	"<span id=\"warning-header\"><strong>HLX:CE Database Updater log</span></strong><br /><br />\n";
-	// Check version since updater wasn't implemented until version 1.6.2
-	$versioncomp = version_compare($g_options['version'], '1.6.1');
-	
-	if ($versioncomp === -1)
-	{
-		// not yet at 1.6.1
-		echo "You cannot upgrade from this version (".$g_options['version']."). You can only upgrade from 1.6.1.  Please manually apply the SQL updates found in the SQL folder through 1.6.1, then re-run this updater.\n";
+	require_once './updater/functions.php';
+	$startingVersion = (int) $g_options['dbversion'];
+	if ($startingVersion < 82) {
+		hlstatsUpgradeStop('This fork upgrades working version-82 installations. Stage older installations to a verified version-82 schema first; see sql/migrations/README.md.');
 	}
-	else if ($versioncomp === 0)
-	{
-		// at 1.6.1, up to 1.6.2
-		include ("./updater/update161-162.php");		
+	echo "Currently on database version $startingVersion<br />\n";
+	$upgradeLock = 'hlstats:upgrade:' . md5($db->db_name);
+	$result = $db->query("SELECT GET_LOCK('$upgradeLock', 0)");
+	if ($db->fetch_row($result)[0] != 1) {
+		hlstatsUpgradeStop('Another database upgrade is running.');
 	}
-	else
-	{
-		// at 1.6.2 or higher, can update normally
-		echo "Currently on database version ".$g_options['dbversion']."<br />\n";
-		$i = $g_options['dbversion']+1;
-		
-		while (file_exists ("./updater/$i.php"))
-		{
+	try {
+		if ($startingVersion < 89) {
+			echo "Checking schema, indexes and collation conflicts before changing the database...<br />\n";
+			$upgradeTables = hlstatsUpgradePreflight($db, $startingVersion);
+		}
+		$i = $startingVersion + 1;
+		while (file_exists("./updater/$i.php")) {
 			echo "<br /><em>Running database update $i</em><br />\n";
-			include ("./updater/$i.php");
-			
+			include("./updater/$i.php");
 			echo "<em>Database update for DB Version $i complete.</em><br />";
 			$i++;
-			
 		}
-		
-		if ($i == $g_options['dbversion']+1)
-		{
-			echo "<strong>Your database is already up to date (".$g_options['dbversion'].")</strong>\n";
+		if ($i == $startingVersion + 1) {
+			echo "<strong>Your database is already up to date ($startingVersion)</strong>\n";
+		} else {
+			echo "<br /><strong>Successfully updated to database version " . ($i - 1) . "!</strong>\n";
 		}
-		else
-		{
-			echo "<br /><strong>Successfully updated to database version ".($i-1)."!</strong>\n";
-		}
+	} finally {
+		$db->query("SELECT RELEASE_LOCK('$upgradeLock')");
 	}
 	
 	echo "<br /><br /><img src=\"".IMAGE_PATH."/warning.gif\" alt=\"Warning\"> <span class=\"warning-header\">You <strong>must delete</strong> the \"updater\" folder from your web site before your site will be operational.</span>\n</div>\n";
