@@ -1,143 +1,87 @@
 # Database upgrades
 
 `sql/install.sql` is **only for an empty database**. Never import it over an
-existing installation. It includes the current schema and sets
-`hlstats_Options.dbversion` to **89**; no additional migrations are needed.
+existing installation. It includes the current schema at **dbversion 89**.
 
 ## Existing installations
 
-Use the existing **HLX:CE Database Updater** (`hlstats.php?mode=updater`).
-It runs consecutive `web/updater/<number>.php` files after the database's recorded
-`dbversion`, including updates 83–89 below. There is no separate SQL import step.
-Older installations must follow any historical prerequisites reported by the
-updater. The `2019_*.sql` files in this directory are historical patches, not a
-sequence to glob-import.
+Start from a **working dbversion-82 installation**. `dbversion` is the schema
+update number stored in `hlstats_Options`, not the MySQL/MariaDB version or the
+application release number. Older installations must first reach a working 82
+using their historical upgrade tools; changing the version label is not enough.
 
-| Database version | Update | Effect |
-| --- | --- | --- |
-| 83 | `web/updater/83.php` | Event/profile lookup and graph time-order indexes |
-| 84 | `web/updater/84.php` | Cover global chat's per-server date/id candidate prefixes; retain the compact server key for fast legacy totals (which may include orphaned-player messages) |
-| 85 | `web/updater/85.php` | Replace Frags map/weapon prefixes with covering dimension indexes |
-| 86 | `web/updater/86.php` | Cover exact player ranks and population counts; replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` |
-| 87 | `web/updater/87.php` | Covering IP-prefix/player lookup for connection searches and resolver |
-| 88 | `web/updater/88.php` | Time-leading event indexes for bounded retention deletes |
-| 89 | `web/updater/89.php` | Normalize the database default, base-table defaults and text columns to `utf8mb4_general_ci` |
+Use the existing **HLX:CE Database Updater** (`hlstats.php?mode=updater`). It runs
+consecutive `web/updater/<number>.php` files after the recorded version. There is
+no separate SQL import step, migration ledger or shared migration helper.
 
-Before each deployment:
+| Database version | Effect |
+| --- | --- |
+| 83 | Event/profile lookup and graph time-order indexes |
+| 84 | Global chat server/date/id index; retain the compact server key for totals |
+| 85 | Replace Frags map/weapon prefixes with covering dimension indexes |
+| 86 | Replace `(game,hideranking)` with `(game,hideranking,skill,kills,deaths)` for player ranking |
+| 87 | IP-prefix/player index for connection searches and resolver |
+| 88 | Time-leading event indexes for batched retention deletes |
+| 89 | Convert database/table defaults and text columns to `utf8mb4_general_ci` |
 
-- Back up the database and verify restoration. Test the upgrade on a recent copy,
-  including any locally customized indexes. Check free disk space for table rebuilds.
-- Pause the daemon, awards/resolver jobs, and web access for the migration window.
-  Most application tables are MyISAM: ALTER can copy the entire table and block
-  readers/writers. Index creation is not a zero-downtime operation. Measure the
-  maintenance window on your copy; do not manually trigger a production upgrade
-  without the operator's approval.
-- Deploy the web files including `web/updater/`, keeping the updater accessible
-  only to the operator. Ensure the web database account has ALTER privileges and
-  that PHP/proxy request timeouts allow the measured upgrade duration.
-- Open the Database Updater once and inspect its output. Updates 83–89 advance
-  `dbversion` only after their statements succeed. Do not run concurrent upgrades.
-- Confirm `SELECT value FROM hlstats_Options WHERE keyname = 'dbversion';` returns
-  **89**. Remove the deployed `web/updater/` folder as directed by the updater,
-  then check affected pages and ingestion before reopening access. Compare query
-  plans and results on representative data; small seed data cannot predict performance.
+Before upgrading, back up and test on a copy of your database. Pause the daemon,
+awards/resolver jobs and web traffic during the upgrade. ALTER statements can
+rebuild and lock large tables; allow enough disk space and request time. The
+updater needs SELECT, UPDATE and ALTER privileges on the dedicated HLstatsX
+database. Run it once, check the output and confirm `dbversion` is 89, then remove
+the deployed `web/updater/` directory as directed by the updater.
 
-### Databases that used the earlier db-fixes SQL files
+These are ordinary, one-time numbered updates. Each records its version after
+its statements succeed. Already-applied indexes, partial updates and earlier
+unreleased db-fixes experiments are not supported starting states. SQL errors
+are not suppressed; DDL may already have committed when an error occurs. Restore
+the backup or reconcile the failure manually, rather than blindly rerunning or
+changing `dbversion`. There is no automatic rollback or recovery update 90.
 
-Updates 83–88 recognize each corresponding filename in an existing
-`hlstats_SchemaMigrations` table and skip that update's already-completed DDL.
-Missing updates run normally, even if the recorded files are not a consecutive
-prefix. The updater then advances `dbversion` through 89. It does not create or
-write the old ledger; an existing ledger is left intact as historical information.
-Future updates use only numbered updater files and `dbversion`.
+### Database compatibility
 
-The six `2026_10_23_*.sql` files have been replaced by updates 83–88; do not apply
-copies from an older checkout. If an old manual file failed partway through and
-has no completion row, reconcile its partial DDL before running the updater.
+The compatibility baseline is **MySQL 5.7** or **MariaDB 10.6**, using the latest
+patch release for the chosen line. Prefer **MySQL 8.4 LTS** or **MariaDB 10.11 LTS**
+for maintained deployments. Legacy compatibility does not imply vendor security
+support. Keep default SQL modes enabled, including MySQL's ONLY_FULL_GROUP_BY.
 
-### Failure and rollback
+Compatibility work exercised actual MySQL **5.7.44**, **8.0.44**, **8.4.8** and
+MariaDB **10.6.24**, **10.11.19** with PHP 8.5: populated upgrades, fresh installs,
+frontend/in-game queries and the Perl awards/ribbon job. The simplified numbered
+updater was subsequently rechecked on MariaDB 10.11; the full five-server matrix
+was run before removing the extra migration checks, not repeated afterward.
+Earlier server lines, every custom schema and production-scale migration times
+have not been qualified. MariaDB testing is not a substitute for MySQL testing.
 
-DDL implicitly commits. A transaction cannot roll back a partly applied update,
-especially on MyISAM. If a statement fails, keep writers paused and inspect
-`SHOW CREATE TABLE` / `SHOW INDEX` for each affected table. The failing update's
-version is not recorded, but earlier DDL may already be committed. Do not rerun
-the updater blindly: completed ADD/DROP operations will fail on replay. Reconcile
-custom indexes, execute only the failing update's remaining statements in order,
-and execute its final `dbversion` UPDATE only after every intended change is
-verified. Then reopen the updater to continue with subsequent versions. Preserve
-the original updater files and record recovery commands in the deployment log.
+Normal operation needs SELECT/INSERT/UPDATE/DELETE and CREATE TEMPORARY TABLES.
+Ribbon publication also needs CREATE, DROP and ALTER. Legacy role pages use
+`DROP TABLE IF EXISTS` for their scratch tables, so need DROP and the names
+`hlstats_Frags_as` / `hlstats_Frags_as_res` reserved for that purpose.
 
-For update 83, application SQL is unchanged; rolling back PHP does
-not require removing the indexes. If the schema itself must be restored, use the
-verified backup or explicitly reverse the ALTERs during maintenance (restore the
-two dropped single-column keys as well as removing the added keys). There is no
-automatic down migration. Do not lower `dbversion` unless all subsequent schema
-changes are also reversed. If reverting an old manually applied change, reconcile
-its historical ledger row too, so a future upgrade does not incorrectly skip it.
+### Collation conversion (update 89)
 
-For update 86, restore `game_hideranking(game,hideranking)`
-and drop `game_skill_rank` if reversing its schema change. It does not change
-ranking semantics or require simultaneous PHP/Perl deployment. The wider key
-adds storage and ingestion cost; benchmark on your copy. It covers exact rank
-and population scans, not computed K:D/accuracy/headshot ordering. Deep offsets
-and period aggregation still require work proportional to the qualifying data;
-arbitrary page navigation and exact totals are retained.
+Use **utf8mb4 / utf8mb4_general_ci** in the schema, connection configuration and
+temporary tables. Update an existing local `config.php` accordingly. Changing
+only the database default does not convert existing text columns; mixed stored
+and temporary-table collations can cause “illegal mix of collations” join errors.
 
-### Collation normalization (update 89)
+Update 89 converts base tables whose default or any text column differs, then
+changes the database default. Already-matching tables are not rebuilt. This also
+converts custom base tables, so use a dedicated database. Views, binary columns
+and storage engines are not changed.
 
-Mixed stored and temporary-table collations can make joins fail with error 1267
-(illegal mix of collations). Changing only the database default or PHP connection
-settings does not convert stored columns.
+General-ci preserves the reported distinct clan tags `[ß]` / `[SS]` and
+`[TM]` / `[™]` that Unicode-ci collapsed. It is available on both supported
+database products, unlike MySQL-specific 0900 collations. A binary/case-sensitive
+collation would change application matching semantics, so is not a drop-in fix.
 
-Update 89 explicitly selects `utf8mb4` / `utf8mb4_general_ci`, matching
-`web/config.php` and fresh installs rather than version-dependent server defaults.
-Keep `DB_CHARSET` and `DB_COLLATE` set to those values, including in an existing
-locally maintained config.php. The conversion changes the selected
-database's default and converts every base table whose default or any text column
-differs, including custom tables and an existing historical migration ledger.
-Use a dedicated HLstatsX database. Views are not altered; binary columns are not
-text columns and retain their binary semantics. Already-normalized tables are
-skipped, including on retry after a partial conversion.
-
-General-ci preserves distinct clan tags such as `[ß]` / `[SS]` and `[TM]` / `[™]`
-that Unicode-ci would collapse, violating the unique `(game,tag)` index. No clans
-are deleted, renamed or merged. The upgrade path assumes an installation from
-`dev`, not a database already migrated using an earlier revision of this branch.
-
-The updater account needs ALTER permission on the database and all affected
-tables. Rehearse with a backup: conversions can rebuild large event tables,
-change sorting/comparison results, encounter duplicate unique keys under the new
-comparison rules, or exceed index limits when expanding an older charset. MySQL
-may widen text types to preserve their character capacity. Do not suppress these
-errors or delete conflicting data to force success. General-ci is not guaranteed
-collision-free for arbitrary source collations or custom data. Resolve any
-reported schema or data conflict before retrying; the failing update's version
-is not recorded. Rollback requires the verified backup or original per-column/table/
-database definitions; there is no universal reverse collation.
-
-After upgrading, the following queries should return no rows (run with the
-HLstatsX database selected):
-
-```sql
-SELECT SCHEMA_NAME, DEFAULT_COLLATION_NAME
-FROM information_schema.SCHEMATA
-WHERE SCHEMA_NAME = DATABASE()
-  AND DEFAULT_COLLATION_NAME <> 'utf8mb4_general_ci';
-
-SELECT TABLE_NAME, TABLE_COLLATION
-FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
-  AND TABLE_COLLATION <> 'utf8mb4_general_ci';
-
-SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME
-FROM information_schema.COLUMNS
-WHERE TABLE_SCHEMA = DATABASE() AND COLLATION_NAME IS NOT NULL
-  AND COLLATION_NAME <> 'utf8mb4_general_ci'
-  AND TABLE_NAME IN (
-      SELECT TABLE_NAME FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
-  );
-```
+Conversion is not guaranteed conflict-free for every source collation: for
+example, Unicode-ci can distinguish `s` / `ß`, which general-ci considers equal.
+Unique-key conflicts, old InnoDB key-size limits, custom foreign keys and invalid
+historical dates can prevent ALTER. The updater leaves these to the database's
+normal errors; it does not rename/delete data or automatically change row formats
+or constraints. Rehearse on your own data. Conversion trusts the declared source
+charset and does not repair mislabelled text or mojibake.
 
 ### Retention job
 
@@ -185,17 +129,10 @@ synthetic data exaggerates some selectivity gains; no concurrent-load claim is m
 ## Adding a migration
 
 - Add the next consecutive `web/updater/<number>.php` file, guarded by
-  `IN_UPDATER`, using the existing `$db` connection. Coordinate numbers across
-  parallel branches before integration; do not introduce another migration ledger.
-  Never modify an update already applied by operators.
+  `IN_UPDATER`, using the existing `$db` connection and direct SQL.
 - Use MySQL 5.7+ / MariaDB-compatible SQL, not MariaDB-only `ADD INDEX IF NOT EXISTS`.
-  Include prerequisites and operational/rollback notes. Do not renumber historical
-  updates or suppress SQL errors.
+  Do not suppress SQL errors or modify updates already released to operators.
 - Update `hlstats_Options.dbversion` at the end, after all statements succeed.
-- Make the same schema/data change in `sql/install.sql` and advance its
-  `@DBVERSION`. Verify both a fresh import and an upgraded populated database.
-  Data migrations must likewise leave fresh and upgraded installations equivalent.
-- Benchmark indexes against their actual consumers; a composite can replace its
-  redundant left-prefix key, but must not remove a time-leading purge key. Account
-  for ingestion cost and disk space. Preserve sort, tie, visibility, retention and
-  count semantics unless the issue explicitly requires a behavior correction.
+- Make the equivalent change in `sql/install.sql` and advance its `@DBVERSION`.
+  Verify both a fresh import and an upgraded populated database.
+- Benchmark indexes against their consumers and account for ingestion/disk cost.

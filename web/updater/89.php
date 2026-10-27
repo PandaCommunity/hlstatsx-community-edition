@@ -4,9 +4,7 @@
         die('Do not access this file directly.');
     }
 
-    // Match install.sql and DB_COLLATE, not the server's version-dependent default.
     // ALTER DATABASE alone does not change existing tables or column overrides.
-    $db->query("ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
     $tables = $db->query("SELECT t.TABLE_NAME
         FROM information_schema.TABLES AS t
         WHERE t.TABLE_SCHEMA = DATABASE() AND t.TABLE_TYPE = 'BASE TABLE'
@@ -23,5 +21,7 @@
         $db->query("ALTER TABLE `$table` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
     }
 
+    // Change the database default only after its existing tables are converted.
+    $db->query("ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
     // Conversions can rebuild/lock tables and commit independently. Stop on error.
     $db->query("UPDATE hlstats_Options SET value = '89' WHERE keyname = 'dbversion'");

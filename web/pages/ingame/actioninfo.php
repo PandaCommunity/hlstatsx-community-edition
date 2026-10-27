@@ -102,7 +102,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			hlstats_Players.lastName AS playerName,
 			hlstats_Players.flag as flag,
 			COUNT(hlstats_Events_PlayerActions.id) AS obj_count,
-			COUNT(hlstats_Events_PlayerActions.id) * hlstats_Actions.reward_player AS obj_bonus
+			SUM(hlstats_Actions.reward_player) AS obj_bonus
 		FROM
 			hlstats_Events_PlayerActions, hlstats_Players, hlstats_Actions
 		WHERE
@@ -141,7 +141,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Players.lastName AS playerName,
             hlstats_Players.flag as flag,
             COUNT(hlstats_Events_TeamBonuses.id) AS obj_count,
-            COUNT(hlstats_Events_TeamBonuses.id) * hlstats_Actions.reward_player AS obj_bonus
+            SUM(hlstats_Actions.reward_player) AS obj_bonus
         FROM
             hlstats_Events_TeamBonuses, hlstats_Players, hlstats_Actions
         WHERE

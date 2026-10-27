@@ -200,6 +200,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			WHERE
 				hlstats_Players_Awards.playerId = $player
 			GROUP BY
+				hlstats_Awards.awardId,
 				hlstats_Awards.name,
 				hlstats_Awards.verb
 			ORDER BY
@@ -211,13 +212,13 @@ For support and installation notes visit http://www.hlxcommunity.com
 		$resultCount = $db->query
 		("
 			SELECT
-				COUNT(awardId)
+				COUNT(DISTINCT hlstats_Awards.awardId)
 			FROM
 				hlstats_Players_Awards
+			INNER JOIN
+				hlstats_Awards ON hlstats_Awards.awardId = hlstats_Players_Awards.awardId
 			WHERE
 				hlstats_Players_Awards.playerId = $player
-			GROUP BY
-				hlstats_Players_Awards.awardId
 		");
 	}
 	list($numitems) = $db->fetch_row($resultCount);

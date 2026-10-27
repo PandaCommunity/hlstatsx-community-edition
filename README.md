@@ -3,8 +3,9 @@
 ### 📌 Requirements
 
 - **PHP:** version 8.5 or higher required.
-- **MySQL / MariaDB:** version 5.7 or higher required (recommended 8.0).
+- **Database compatibility baseline:** MySQL **5.7** or MariaDB **10.6**, using the latest patch release for the chosen line. Prefer MySQL **8.4 LTS** or MariaDB **10.11 LTS**; compatibility with legacy lines does not imply vendor support or security updates.
 - The web database account needs **CREATE TEMPORARY TABLES** on the HLstatsX database for clan and country rankings. These request-local summaries are dropped after use; no persistent summary tables are created.
+- **Existing installations:** start from a working HLstatsX database at **dbversion 82**. The [upgrade guide](sql/migrations/README.md) documents the 82–89 path, database compatibility and collation conversion. Never import `sql/install.sql` over an existing database.
 ---
 HLstatsX Community Edition is an open-source project licensed
 under GNU General Public License v2 and is a real-time stats
