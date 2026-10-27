@@ -2,13 +2,13 @@
 
 `sql/install.sql` is **only for an empty database**. Never import it over an
 existing installation. It includes the current schema and sets
-`hlstats_Options.dbversion` to **90**; no additional migrations are needed.
+`hlstats_Options.dbversion` to **89**; no additional migrations are needed.
 
 ## Existing installations
 
 Use the existing **HLX:CE Database Updater** (`hlstats.php?mode=updater`).
 It runs consecutive `web/updater/<number>.php` files after the database's recorded
-`dbversion`, including updates 83–90 below. There is no separate SQL import step.
+`dbversion`, including updates 83–89 below. There is no separate SQL import step.
 Older installations must follow any historical prerequisites reported by the
 updater. The `2019_*.sql` files in this directory are historical patches, not a
 sequence to glob-import.
@@ -22,7 +22,6 @@ sequence to glob-import.
 | 87 | `web/updater/87.php` | Covering IP-prefix/player lookup for connection searches and resolver |
 | 88 | `web/updater/88.php` | Time-leading event indexes for bounded retention deletes |
 | 89 | `web/updater/89.php` | Normalize the database default, base-table defaults and text columns to `utf8mb4_general_ci` |
-| 90 | `web/updater/90.php` | Apply the same normalization to databases that already completed the earlier Unicode-collation update 89 |
 
 Before each deployment:
 
@@ -36,10 +35,10 @@ Before each deployment:
 - Deploy the web files including `web/updater/`, keeping the updater accessible
   only to the operator. Ensure the web database account has ALTER privileges and
   that PHP/proxy request timeouts allow the measured upgrade duration.
-- Open the Database Updater once and inspect its output. Updates 83–90 advance
+- Open the Database Updater once and inspect its output. Updates 83–89 advance
   `dbversion` only after their statements succeed. Do not run concurrent upgrades.
 - Confirm `SELECT value FROM hlstats_Options WHERE keyname = 'dbversion';` returns
-  **90**. Remove the deployed `web/updater/` folder as directed by the updater,
+  **89**. Remove the deployed `web/updater/` folder as directed by the updater,
   then check affected pages and ingestion before reopening access. Compare query
   plans and results on representative data; small seed data cannot predict performance.
 
@@ -48,7 +47,7 @@ Before each deployment:
 Updates 83–88 recognize each corresponding filename in an existing
 `hlstats_SchemaMigrations` table and skip that update's already-completed DDL.
 Missing updates run normally, even if the recorded files are not a consecutive
-prefix. The updater then advances `dbversion` through 90. It does not create or
+prefix. The updater then advances `dbversion` through 89. It does not create or
 write the old ledger; an existing ledger is left intact as historical information.
 Future updates use only numbered updater files and `dbversion`.
 
@@ -84,13 +83,13 @@ and population scans, not computed K:D/accuracy/headshot ordering. Deep offsets
 and period aggregation still require work proportional to the qualifying data;
 arbitrary page navigation and exact totals are retained.
 
-### Collation normalization (updates 89–90)
+### Collation normalization (update 89)
 
 Mixed stored and temporary-table collations can make joins fail with error 1267
 (illegal mix of collations). Changing only the database default or PHP connection
 settings does not convert stored columns.
 
-Updates 89–90 explicitly select `utf8mb4` / `utf8mb4_general_ci`, matching
+Update 89 explicitly selects `utf8mb4` / `utf8mb4_general_ci`, matching
 `web/config.php` and fresh installs rather than version-dependent server defaults.
 Keep `DB_CHARSET` and `DB_COLLATE` set to those values, including in an existing
 locally maintained config.php. The conversion changes the selected
@@ -100,14 +99,10 @@ Use a dedicated HLstatsX database. Views are not altered; binary columns are not
 text columns and retain their binary semantics. Already-normalized tables are
 skipped, including on retry after a partial conversion.
 
-The earlier update 89 targeted `utf8mb4_unicode_ci`. Real clan data demonstrated
-that this collapses distinct tags such as `[ß]` / `[SS]` and `[TM]` / `[™]`,
-violating the unique `(game,tag)` index. The revised update 89 uses general-ci to
-preserve those distinctions without deleting, renaming or merging clans. If the
-earlier update failed at version 88, deploy the revised files and rerun the
-updater; it also converts any tables already changed by that partial attempt.
-Update 90 reuses the normalization for installations already recorded at 89.
-Both paths finish at 90; do not lower or manually advance dbversion.
+General-ci preserves distinct clan tags such as `[ß]` / `[SS]` and `[TM]` / `[™]`
+that Unicode-ci would collapse, violating the unique `(game,tag)` index. No clans
+are deleted, renamed or merged. The upgrade path assumes an installation from
+`dev`, not a database already migrated using an earlier revision of this branch.
 
 The updater account needs ALTER permission on the database and all affected
 tables. Rehearse with a backup: conversions can rebuild large event tables,
