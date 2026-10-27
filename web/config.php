@@ -126,6 +126,11 @@ define('TREND_CACHE_PROBABILITY', 10); // 10 %
 // any images above this number will be deleted.
 define('TREND_CACHE_MAX_FILES_PER_PLAYER', 5);
 
+// DISPLAY_INTERNAL_ERRORS - Allow internal diagnostic details in responses.
+// Keep disabled in production. Private diagnostics are sent to PHP's error log.
+define('DISPLAY_INTERNAL_ERRORS', false);
+
+// SQL debug output also requires DISPLAY_INTERNAL_ERRORS to be true.
 //define("DB_DEBUG", true);
 
 ?>

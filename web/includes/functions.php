@@ -217,6 +217,28 @@ function timestamp_to_str($seconds)
 }
 
 /**
+ * Report an internal failure without logging raw diagnostics (which may contain
+ * credentials or query values). Callers may supply a safe category/error code.
+ */
+function internal_error(string $message, bool $exit = true, string $logMessage = 'Internal application error'): void
+{
+    $source = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
+    error_log('HLstatsX: ' . $logMessage . ' at ' . basename($source['file']) . ':' . $source['line']);
+
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/html; charset=utf-8');
+    }
+
+    error(
+        defined('DISPLAY_INTERNAL_ERRORS') && DISPLAY_INTERNAL_ERRORS === true
+            ? $message
+            : 'An internal server error occurred. Please try again later.',
+        $exit
+    );
+}
+
+/**
  * error()
  * Formats and outputs the given error message. Optionally terminates script
  * processing.

@@ -141,7 +141,7 @@ function show($tpl, $array)
 	}
 	else
 	{
-		die('no template');
+		internal_error('Unable to read Ventrilo template ' . $template . '.html', true, 'Ventrilo template unavailable');
 	}
     
     foreach($array as $value => $code)
@@ -169,7 +169,7 @@ function show($tpl, $array)
 	
 	if ( $rc )
 	{
-		error("No Ventrilo: " . $stat->m_error, false);
+		internal_error("No Ventrilo: " . $stat->m_error, false, 'Ventrilo status request failed');
 		return;
 	}
 	else

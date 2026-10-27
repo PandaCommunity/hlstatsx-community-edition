@@ -5,7 +5,7 @@
 	}
 	
 	if (!file_exists("./updater")) {
-		die('Updater directory is missing.');
+		internal_error('Updater directory is missing.', true, 'Updater directory unavailable');
 	}
 	
 	define('IN_UPDATER', true);
