@@ -58,8 +58,12 @@ function csrf_verify_request(): void
 	}
 }
 
-function checkValidGame(string $gameStr, array $allowedGames, ?string &$retError) : bool
+function checkValidGame(string $gameStr, ?array $allowedGames, ?string &$retError) : bool
 {
+	if (empty($allowedGames)) {
+		internal_error('Failed to get list of allowed games.', true, 'Game list unavailable');
+	}
+
 	// Not object and array
 	if (!is_string($gameStr)) {
 		$retError = 'Invalid game parameter.';
@@ -75,11 +79,6 @@ function checkValidGame(string $gameStr, array $allowedGames, ?string &$retError
 	// Path traversal and XSS fixes
 	if (!preg_match('/^[a-zA-Z0-9_]+$/', $gameStr)) {
 		$retError = 'Invalid game code.';
-		return false;
-	}
-
-	if (!is_array($allowedGames) || empty($allowedGames)) {
-		$retError = 'Failed to get list of allowed games.';
 		return false;
 	}
 
@@ -222,8 +221,13 @@ function timestamp_to_str($seconds)
  */
 function internal_error(string $message, bool $exit = true, string $logMessage = 'Internal application error'): void
 {
-    $source = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1)[0];
-    error_log('HLstatsX: ' . $logMessage . ' at ' . basename($source['file']) . ':' . $source['line']);
+    $sources = [];
+    foreach (debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS) as $frame) {
+        if (isset($frame['file'])) {
+            $sources[] = basename($frame['file']) . ':' . $frame['line'];
+        }
+    }
+    error_log('HLstatsX: ' . $logMessage . ' at ' . implode(' <- ', $sources));
 
     if (!headers_sent()) {
         http_response_code(500);
