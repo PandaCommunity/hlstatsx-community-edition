@@ -139,6 +139,14 @@
         exit();
     }
 
+    // Resolve the image path before passing the font to FreeType.
+    $font = realpath(IMAGE_PATH . '/sig/font/DejaVuSans.ttf');
+    if ($font === false || !is_readable($font)) {
+        error_log('Unable to render player trend graph: DejaVuSans.ttf is missing or unreadable.');
+        http_response_code(500);
+        exit();
+    }
+
     // Clear cache
     $cacheCleaner = $container->get(\Cache\CacheCleaner::class);
     $deleteFiles = $cacheCleaner->cleanOldTrendCache(
@@ -158,7 +166,7 @@
     $Chart->drawGraphAreaGradient(40, 40, 40, -50);
 
     if ($emptyData) {
-        $Chart->setFontProperties(IMAGE_PATH . '/sig/font/DejaVuSans.ttf', 11);
+        $Chart->setFontProperties($font, 11);
         $Chart->drawTextBox(100, 90, 180, 110, "Not Enough Session Data", 0, 0, 0, 0, ALIGN_LEFT, FALSE, 255, 255, 255, 0);
     } else {
         $DataSet = new pData;
@@ -170,7 +178,7 @@
         $DataSet->SetSerieName('Skill', 'SerieSkill');
         $DataSet->SetSerieName('Session', 'SerieSession');
 
-        $Chart->setFontProperties(IMAGE_PATH . '/sig/font/DejaVuSans.ttf', 7);
+        $Chart->setFontProperties($font, 7);
         $DataSet->SetYAxisName('Skill');
         $DataSet->SetYAxisUnit('K');
         $Chart->setColorPalette(0, 255, 255, 0);
@@ -198,7 +206,7 @@
         $Chart->clearShadow();
         $Chart->drawPlotGraph($DataSet->GetData(), $DataSet->GetDataDescription(), 1, 1, 255, 255, 255);
 
-        $Chart->setFontProperties(IMAGE_PATH . '/sig/font/DejaVuSans.ttf',7);
+        $Chart->setFontProperties($font,7);
         $Chart->drawHorizontalLegend(235, -1, $DataSet->GetDataDescription(),
             0, 0, 0, 0, 0, 0, $colorText['red'], $colorText['green'], $colorText['blue'], FALSE);
     }
