@@ -201,6 +201,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	$day_interval = 28;  
 	$result = $db->query("
 		SELECT
+			SQL_CALC_FOUND_ROWS
 			playerId,
 			connection_time,
 			lastName,
@@ -230,18 +231,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 			$table->numperpage
 	");
 	
-	$resultCount = $db->query("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Players
-		WHERE
-			game='$game'
-			AND hideranking=0
-			AND kills >= $minkills
-	");
+	$resultCount = $db->query("SELECT FOUND_ROWS()");
 	
 	list($numitems) = $db->fetch_row($resultCount);
 	
-	$table->draw($result, 25, 100);
+	$table->draw($result, $numitems, 100);
 ?>

@@ -311,11 +311,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 		WHERE
 			flag='$flag'
 			AND hlstats_Players.hideranking = 0
-			AND hlstats_Players.game='$game'      
-		GROUP BY
-			hlstats_Players.playerId
-		HAVING
-			activity >= 0
+			AND hlstats_Players.game='$game'
+			AND ".$g_options['MinActivity']." > 0
+			AND last_event > UNIX_TIMESTAMP() - ".$g_options['MinActivity']."
 		ORDER BY
 			$tblMembers->sort $tblMembers->sortorder,
 			$tblMembers->sort2 $tblMembers->sortorder,
@@ -325,21 +323,19 @@ For support and installation notes visit http://www.hlxcommunity.com
 	
 	$resultCount = $db->query("
 		SELECT
-			playerId,
-			IF(".$g_options['MinActivity']." > (UNIX_TIMESTAMP() - last_event), ((100/".$g_options['MinActivity'].") * (".$g_options['MinActivity']." - (UNIX_TIMESTAMP() - last_event))), -1) as activity
+			COUNT(*)
 		FROM
 			hlstats_Players
 		WHERE
 			flag='$flag'
 			AND hlstats_Players.hideranking = 0
-			AND hlstats_Players.game='$game'      
-		GROUP BY
-			hlstats_Players.playerId
-		HAVING
-			activity >= 0
+			AND hlstats_Players.game='$game'
+			AND ".$g_options['MinActivity']." > 0
+			AND last_event > UNIX_TIMESTAMP() - ".$g_options['MinActivity']."
 	");
-	
-	$numitems = $db->num_rows($resultCount);
+
+	list($numitems) = $db->fetch_row($resultCount);
+	$db->free_result($resultCount);
 ?>
 <div class="block" style="padding-top:10px;">
 <?php

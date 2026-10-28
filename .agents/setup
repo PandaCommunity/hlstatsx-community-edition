@@ -237,7 +237,7 @@ fi
 
 step "Ensuring the hlstatsx database and development user"
 sudo mariadb <<'SQL'
-CREATE DATABASE IF NOT EXISTS hlstatsx CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS hlstatsx CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE USER IF NOT EXISTS 'hlstats'@'%' IDENTIFIED BY 'hlstats';
 ALTER USER 'hlstats'@'%' IDENTIFIED BY 'hlstats';
 GRANT ALL PRIVILEGES ON hlstatsx.* TO 'hlstats'@'%';

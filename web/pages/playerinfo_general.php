@@ -333,10 +333,11 @@ For support and installation notes visit http://www.hlxcommunity.com
 									hlstats_Weapons
 								ON
 									hlstats_Weapons.code = hlstats_Events_Frags.weapon
+									AND hlstats_Weapons.game = '$game'
 								WHERE
 									hlstats_Events_Frags.killerId=$player
 								GROUP BY
-									hlstats_Events_Frags.weapon
+									hlstats_Events_Frags.weapon, hlstats_Weapons.name
 								ORDER BY
 									kills desc, headshots desc
 								LIMIT
@@ -817,23 +818,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 <?php
 // Awards
-	$numawards = $db->query
-	("
-		SELECT
-			hlstats_Ribbons.awardCode,
-			hlstats_Ribbons.image
-		FROM
-			hlstats_Ribbons
-		WHERE
-			hlstats_Ribbons.game = '$game'
-			AND
-			(
-				hlstats_Ribbons.special = 0
-				OR hlstats_Ribbons.special = 2
-			)
-		GROUP BY
-			hlstats_Ribbons.awardCode
-	");
 	$res = $db->query
 	("
 		SELECT
