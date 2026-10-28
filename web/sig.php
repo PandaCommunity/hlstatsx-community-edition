@@ -419,16 +419,14 @@ if ($player_id > 0) {
 		}
 	}
         imagealphablending($image, true);
-	$timestamp   = $playerdata['connection_time'];
-	$days        = floor($timestamp / 86400);
-	$hours       = $days * 24;   
-	$hours       += floor($timestamp / 3600 % 24);
+	$timestamp   = (int) $playerdata['connection_time'];
+	$hours       = intdiv($timestamp, 3600);
 	if ($hours < 10)
 		$hours = '0'.$hours; 
-	$min         = floor($timestamp / 60 % 60); 
+	$min         = intdiv($timestamp, 60) % 60;
 	if ($min < 10)
 		$min = '0'.$min; 
-	$sec         = floor($timestamp % 60);
+	$sec         = $timestamp % 60;
 	if ($sec < 10)
 		$sec = '0'.$sec; 
 	$con_time = $hours.':'.$min.':'.$sec;
@@ -443,9 +441,9 @@ if ($player_id > 0) {
 		$trend_image_name = IMAGE_PATH.'/t2.gif';
 	$trend = imagecreatefromgif($trend_image_name);
     
-	if(function_exists('imagettftext'))
+	$font = realpath(IMAGE_PATH.'/sig/font/DejaVuSans.ttf');
+	if (function_exists('imagettftext') && $font !== false && is_readable($font))
 	{
-		$font = IMAGE_PATH.'/sig/font/DejaVuSans.ttf';
 		imagettftext($image, 10, 0, 30, 15, $caption_color, $font, $pl_name);
 	}
 	else
