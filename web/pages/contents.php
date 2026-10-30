@@ -114,30 +114,41 @@ For support and installation notes visit http://www.hlxcommunity.com
 				$topplayer = false;
 			}
 					
+			// Group the game's few ranked players by clan first instead of probing every clan.
 			$result = $db->query("
 				SELECT
 					hlstats_Clans.clanId,
 					hlstats_Clans.name,
-					AVG(hlstats_Players.skill) AS skill,
-					AVG(hlstats_Players.kills) AS kills,
-					COUNT(hlstats_Players.playerId) AS numplayers
+					ranked.skill,
+					ranked.kills,
+					ranked.numplayers
 				FROM
+					(
+						SELECT
+							clan,
+							AVG(skill) AS skill,
+							AVG(kills) AS kills,
+							COUNT(playerId) AS numplayers
+						FROM
+							hlstats_Players
+						WHERE
+							game='$gamedata[0]'
+							AND hideranking=0
+							AND clan > 0
+						GROUP BY
+							clan
+						HAVING
+							".$g_options['rankingtype']." IS NOT NULL
+							AND numplayers >= 3
+					) AS ranked
+				INNER JOIN
 					hlstats_Clans
-				LEFT JOIN
-					hlstats_Players
 				ON
-					hlstats_Players.clan = hlstats_Clans.clanId
-				WHERE
-					hlstats_Clans.game='$gamedata[0]'
+					hlstats_Clans.clanId = ranked.clan
+					AND hlstats_Clans.game='$gamedata[0]'
 					AND hlstats_Clans.hidden = 0
-					AND hlstats_Players.hideranking=0
-				GROUP BY
-					hlstats_Clans.clanId
-				HAVING
-					".$g_options['rankingtype']." IS NOT NULL
-					AND numplayers >= 3
 				ORDER BY
-					".$g_options['rankingtype']." DESC
+					ranked.".$g_options['rankingtype']." DESC
 				LIMIT 1
 			");
 
@@ -233,8 +244,25 @@ For support and installation notes visit http://www.hlxcommunity.com
 		
 		$nonhiddengamestring = preg_replace('/,$/', ')', $nonhiddengamestring);
 		
-		$result = $db->query("SELECT COUNT(playerId) FROM hlstats_Players WHERE game IN $nonhiddengamestring");
-		list($num_players) = $db->fetch_row($result);
+		// The daemon stores each game's player count in hlstats_Trend about every 5 minutes.
+		// Use the latest batch while it is fresh and covers every visible game; an exact count
+		// scans the whole hlstats_Players game index.
+		$result = $db->query("
+			SELECT
+				COUNT(*),
+				SUM(players)
+			FROM
+				hlstats_Trend
+			WHERE
+				timestamp = (SELECT MAX(timestamp) FROM hlstats_Trend)
+				AND timestamp >= UNIX_TIMESTAMP() - 3600
+				AND game IN $nonhiddengamestring
+		");
+		list($trend_games, $num_players) = $db->fetch_row($result);
+		if ($trend_games != $num_games) {
+			$result = $db->query("SELECT COUNT(playerId) FROM hlstats_Players WHERE game IN $nonhiddengamestring");
+			list($num_players) = $db->fetch_row($result);
+		}
 		$num_players = number_format($num_players);
 
 		$result = $db->query("SELECT COUNT(clanId) FROM hlstats_Clans WHERE game IN $nonhiddengamestring");
