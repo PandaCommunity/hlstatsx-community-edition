@@ -122,7 +122,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 		"task"=>$selTask
 	));
 	
-	if ($sr_query)
+	if ($search->query !== '')
 	{
 		$search->drawResults(
 			"mode=admin&task=tools_editdetails_player&id=%k",

@@ -147,6 +147,19 @@ For support and installation notes visit http://www.hlxcommunity.com
 			global $g_options, $db;
 			if ($link_player == -1) $link_player = "mode=playerinfo&amp;player=%k";
 			if ($link_clan == -1) $link_clan = "mode=claninfo&amp;clan=%k";
+			$sr_query = preg_replace('/^STEAM_\d+?\:/i','',$this->query);
+			if (mb_strlen($sr_query) < 3)
+			{
+?>
+
+<div class="block">
+	<div class="subblock" style="text-align:center;">
+		Please enter at least 3 characters to search.
+	</div>
+</div>
+<?php
+				return;
+			}
 ?>
 
 </div class="block">
@@ -155,7 +168,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 	<br /><br />
 
 <?php
-			$sr_query = preg_replace('/^STEAM_\d+?\:/i','',$this->query);
 			$sr_query = $db->escape($sr_query);
 			$sr_query = preg_replace('/\s/', '%', $sr_query);
 			if ($this->type == 'player')
@@ -198,9 +210,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 					$andgame = "AND hlstats_Players.game='" . $this->game . "'";
 				else
 					$andgame = '';
+				// Without a game filter the optimizer starts from hlstats_Games and reads
+				// every visible player before matching names; scan the names first instead.
+				$join_order = $this->game ? '' : 'STRAIGHT_JOIN';
 				$result = $db->query
 				("
-					SELECT
+					SELECT $join_order
 						hlstats_PlayerNames.playerId AS player_id,
 						hlstats_PlayerNames.name,
 						hlstats_Players.flag,
@@ -208,11 +223,11 @@ For support and installation notes visit http://www.hlxcommunity.com
 						hlstats_Games.name AS gamename
 					FROM
 						hlstats_PlayerNames
-					LEFT JOIN
+					INNER JOIN
 						hlstats_Players
 					ON
 						hlstats_Players.playerId = hlstats_PlayerNames.playerId
-					LEFT JOIN
+					INNER JOIN
 						hlstats_Games
 					ON
 						hlstats_Games.code = hlstats_Players.game
@@ -229,15 +244,15 @@ For support and installation notes visit http://www.hlxcommunity.com
 				");
 				$resultCount = $db->query
 				("
-					SELECT
+					SELECT $join_order
 						COUNT(*)
 					FROM
 						hlstats_PlayerNames
-					LEFT JOIN
+					INNER JOIN
 						hlstats_Players
 					ON
 						hlstats_Players.playerId = hlstats_PlayerNames.playerId
-					LEFT JOIN
+					INNER JOIN
 						hlstats_Games
 					ON
 						hlstats_Games.code = hlstats_Players.game
@@ -505,16 +520,17 @@ For support and installation notes visit http://www.hlxcommunity.com
 					$andgame = "AND hlstats_Clans.game='" . $this->game . "'";
 				else
 					$andgame = "";
+				$join_order = $this->game ? '' : 'STRAIGHT_JOIN';
 				$result = $db->query
 				("
-					SELECT
+					SELECT $join_order
 						hlstats_Clans.clanId,
 						hlstats_Clans.tag,
 						hlstats_Clans.name,
 						hlstats_Games.name AS gamename
 					FROM
 						hlstats_Clans
-					LEFT JOIN hlstats_Games ON
+					INNER JOIN hlstats_Games ON
 						hlstats_Games.code = hlstats_Clans.game
 					WHERE
 						hlstats_Games.hidden = '0'

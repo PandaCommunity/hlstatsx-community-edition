@@ -52,7 +52,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	$search = new Search($sr_query, $sr_type, $sr_game);
 	$search->drawForm(array('mode' => 'search'));
 
-	if ($sr_query || $sr_query == '0') {
+	if ($search->query !== '') {
 		$search->drawResults();
 	}
 ?>
