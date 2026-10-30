@@ -2,7 +2,7 @@
 
 -- This file is only needed for new installations.
 
-SET @DBVERSION="89";
+SET @DBVERSION="90";
 SET @VERSION="1.7.0";
 
 ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -4147,6 +4147,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players` (
   `kill_streak` int(6) NOT NULL default '0',
   `death_streak` int(6) NOT NULL default '0',
   `blockavatar` int(1) unsigned NOT NULL default '0',
+  `avatarUrl` varchar(255) default NULL,
+  `avatarUpdated` int(11) unsigned NOT NULL default '0',
   `activity` int(11) NOT NULL default '100',
   `createdate` int(11) NOT NULL default'0',
   PRIMARY KEY  (`playerId`),

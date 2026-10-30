@@ -75,6 +75,14 @@ define("DB_COLLATE", 'utf8mb4_general_ci');
 //               connections.
 define("DB_PCONNECT", 0);
 
+// STEAM_API_KEY - Steam Web API key (https://steamcommunity.com/dev/apikey)
+//                 used to show players' Steam avatars, cached for 24 hours per
+//                 player. Set it here or with the STEAM_API_KEY environment
+//                 variable (for example `env[STEAM_API_KEY] = ...` in the
+//                 PHP-FPM pool, `SetEnv` in Apache or `fastcgi_param` in nginx).
+//                 Leave empty to disable lookups and show the default avatar.
+define('STEAM_API_KEY', getenv('STEAM_API_KEY') ?: '');
+
 // INCLUDE_PATH - Filesystem path to the includes directory, relative to hlstats.php. This must be specified
 //		as a relative path.
 //

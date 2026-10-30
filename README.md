@@ -18,6 +18,8 @@ focused on bug fixes, compatibility and performance rather than new features.
 - Fixed search counts, rankings and in-game pagination.
 - Improved awards, ribbon rebuilds, history pruning and hostname resolution.
 - Fixed MySQL strict-mode queries and standardized database text collations.
+- Player avatars use the Steam Web API with a 24-hour database cache; the Steam
+  online status is no longer shown.
 
 ## Requirements
 
@@ -59,11 +61,14 @@ change the version value.
    Set `DB_CHARSET` to `utf8mb4` and `DB_COLLATE` to `utf8mb4_general_ci`; keep
    `DISPLAY_INTERNAL_ERRORS` false and PHP error display disabled in production.
    Retain your daemon's `scripts/hlstats.conf`, check database grants, and keep
-   `web/hlstatsimg/progress/` writable by PHP.
+   `web/hlstatsimg/progress/` writable by PHP. To show Steam avatars, set
+   `STEAM_API_KEY` in `config.php` or the web server's environment; without a
+   key, player pages show the default avatar.
 5. **Run the Database Updater** at `hlstats.php?mode=updater`. It applies numbered
-   updates **83–89**, adding the indexes and converting text collations. There is
+   updates **83–90**, adding the indexes, converting text collations and adding
+   the Steam avatar cache columns. There is
    no separate SQL import or migration-ledger step. Confirm the output succeeds
-   and `hlstats_Options.dbversion` is **89**, then **remove the deployed
+   and `hlstats_Options.dbversion` is **90**, then **remove the deployed
    `web/updater/` directory** before reopening the site.
 6. **Validate and resume.** Check admin login, statistics, search, chat, in-game
    pages, graphs and signatures. Verify awards/ribbons, pruning and the resolver
@@ -88,7 +93,7 @@ historical SQL files in `sql/migrations/` as part of this switch.
 ## Fresh installations
 
 Import `sql/install.sql` **only into an empty, dedicated database**. It includes
-the current schema at **dbversion 89**. Configure the frontend, daemon and
+the current schema at **dbversion 90**. Configure the frontend, daemon and
 game-server log forwarding, supply the required grants, and remove the deployed
 updater directory before normal use.
 

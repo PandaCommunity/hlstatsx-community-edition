@@ -51,7 +51,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			<table class="data-table">
 			<tr class="data-table-head">
 					<td style="vertical-align:top;">Player Profile<br /><br /></td>
-					<td style="text-align:center; vertical-align:middle;" rowspan="7" id="player_avatar">
+					<td style="text-align:center; vertical-align:middle;" rowspan="6" id="player_avatar">
 						<?php
 							$db->query
 							("
@@ -64,32 +64,13 @@ For support and installation notes visit http://www.hlxcommunity.com
 									hlstats_PlayerUniqueIds.playerId = '$player'
 							");
 							list($uqid, $coid) = $db->fetch_row();
-						
-							$status = 'Unknown';
-							$avatar_full = IMAGE_PATH."/unknown.jpg";
-						
-							if ($coid !== '76561197960265728') {
 
-								$profileUrl = "https://steamcommunity.com/profiles/$coid?xml=1";
-		
-								$curl = curl_init();
-								curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1 );
-								curl_setopt($curl, CURLOPT_URL, $profileUrl);
+							// Only Normal mode stores Steam IDs; NameTrack stores names that could look like one.
+							$avatar_full = ($playerdata['blockavatar'] || $g_options['Mode'] !== 'Normal')
+								? null
+								: $container->get(\Service\SteamAvatarService::class)->getAvatarUrl((int)$player);
+							$avatar_full = htmlspecialchars($avatar_full ?? IMAGE_PATH . '/unknown.jpg', ENT_QUOTES);
 
-								$xml = curl_exec($curl);
-								unset($curl);
-							}
-							
-							$xmlDoc = null;
-							if ($xml) {
-								$xmlDoc = simplexml_load_string($xml);
-							}
-						
-							if ($xmlDoc) {
-								$status = ucwords($xmlDoc->onlineState);
-								$avatar_full = $xmlDoc->avatarFull;
-							}
-						
 							echo("<img src=\"$avatar_full\" style=\"height:158px;width:158px;\" alt=\"Steam Community Avatar\" />");
 						?>
 					</td>
@@ -129,17 +110,14 @@ For support and installation notes visit http://www.hlxcommunity.com
 					</td>
 				</tr>
 				<tr class="bg1">
-					<td>Status: <strong><?php echo $status; ?></strong></td>
-				</tr>
-				<tr class="bg2">
 					<td>
 						<a href="steam://friends/add/<?php echo($coid); ?>" target="_blank">Click here to add as friend</a>
 					</td>
 				</tr>
-				<tr class="bg1">
+				<tr class="bg2">
 					<td><?php echo "Karma: $statusmsg"; ?></td>
 				</tr>
-				<tr class="bg2">
+				<tr class="bg1">
 					<td style="width:50%;">Member of Clan:</td>
 					<td style="width:50%;">
 						<?php
@@ -152,7 +130,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 						?>
 					</td>
 				</tr>
-				<tr class="bg1">
+				<tr class="bg2">
 					<td>Real Name:</td>
 					<td>
 						<?php
@@ -166,7 +144,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 					</td>
 				</tr>
 
-				<tr class="bg2">
+				<tr class="bg1">
 					<td>E-mail Address:</td>
 
 					<td>
@@ -180,7 +158,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 					</td>
 				</tr>
 
-				<tr class="bg1">
+				<tr class="bg2">
 					<td>Home Page:</td>
 					<td>
 						<?php
@@ -194,7 +172,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 					</td>
 				</tr>
 
-				<tr class="bg2">
+				<tr class="bg1">
                         <td>MM Rank:</td>
 
                         <td>
@@ -209,7 +187,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                         </td>
                 </tr>
 
-				<tr class="bg1">
+				<tr class="bg2">
 					<td>Last Connect:*</td>
 					<td>
 						<?php
@@ -234,13 +212,13 @@ For support and installation notes visit http://www.hlxcommunity.com
 						?>
 					</td>
 				</tr>
-				<tr class="bg2">
+				<tr class="bg1">
 					<td>Total Connection Time:</td>
 					<td>
 						<?php echo timestamp_to_str($playerdata['connection_time']); ?>
 					</td>
 				</tr>
-				<tr class="bg1">
+				<tr class="bg2">
 					<td>Average Ping:*</td>
 					<td>
 						<?php
@@ -262,7 +240,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 						?>
 					</td>
 				</tr>
-				<tr class="bg2">
+				<tr class="bg1">
 					<td>Favorite Server:*</td>
 					<td>
 						<?php
@@ -293,7 +271,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 						?>
 					</td>
 				</tr>
-				<tr class="bg1">
+				<tr class="bg2">
 					<td>Favorite Map:*</td>
 					<td>
 						<?php
@@ -318,7 +296,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 						?>
 					</td>
 				</tr>
-				<tr class="bg2">
+				<tr class="bg1">
 					<td>Favorite Weapon:*</td>
 						<?php
 							$result = $db->query("

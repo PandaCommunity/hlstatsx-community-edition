@@ -7,7 +7,11 @@
 	root * web
 	encode gzip
 
-	php_fastcgi unix//run/php/php8.5-fpm-orb.sock
+	# Pass the orb's Steam Web API key (a project secret) to PHP without
+	# writing it to disk. Empty when unset, which disables avatar lookups.
+	php_fastcgi unix//run/php/php8.5-fpm-orb.sock {
+		env STEAM_API_KEY {$STEAM_API_KEY}
+	}
 
 	file_server
 }

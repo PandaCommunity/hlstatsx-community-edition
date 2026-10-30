@@ -10,6 +10,7 @@
     use Repository\GameRepository;
     use Repository\PlayerRepository;
     use Service\OptionService;
+    use Service\SteamAvatarService;
     use Cache\CacheCleaner;
 
     $container = new class
@@ -75,6 +76,14 @@
             $c->get('pdo'),
             $c->get('logger'),
             $c->get(OptionService::class)
+        );
+    });
+
+    $container->set(SteamAvatarService::class, function($c) {
+        return new SteamAvatarService(
+            $c->get(PlayerRepository::class),
+            $c->get('logger'),
+            STEAM_API_KEY
         );
     });
 

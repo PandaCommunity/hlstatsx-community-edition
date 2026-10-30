@@ -55,6 +55,64 @@
             }
         }
 
+        /**
+         * Returns the player's first uniqueId with the cached Steam avatar URL
+         * (null when none) and the Unix time it was last fetched (0 = never).
+         */
+        public function getSteamAvatarCache(int $player) : ?array
+        {
+            $sql = "
+                SELECT
+                    hlstats_PlayerUniqueIds.uniqueId,
+                    hlstats_Players.avatarUrl,
+                    hlstats_Players.avatarUpdated
+                FROM
+                    hlstats_Players
+                LEFT JOIN
+                    hlstats_PlayerUniqueIds
+                ON
+                    hlstats_PlayerUniqueIds.playerId = hlstats_Players.playerId
+                WHERE
+                    hlstats_Players.playerId = :player
+                LIMIT 1
+            ";
+
+            try {
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->bindValue(':player', $player, PDO::PARAM_INT);
+                $stmt->execute();
+
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                return $row === false ? null : $row;
+            } catch (PDOException $e) {
+                $this->logger->error('Failed to get Steam avatar cache: ' . $e->getMessage());
+                return null;
+            }
+        }
+
+        public function saveSteamAvatarCache(int $player, ?string $avatarUrl, int $updated) : void
+        {
+            $sql = "
+                UPDATE
+                    hlstats_Players
+                SET
+                    avatarUrl = :avatarUrl,
+                    avatarUpdated = :updated
+                WHERE
+                    playerId = :player
+            ";
+
+            try {
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->bindValue(':avatarUrl', $avatarUrl, $avatarUrl === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+                $stmt->bindValue(':updated', $updated, PDO::PARAM_INT);
+                $stmt->bindValue(':player', $player, PDO::PARAM_INT);
+                $stmt->execute();
+            } catch (PDOException $e) {
+                $this->logger->error('Failed to save Steam avatar cache: ' . $e->getMessage());
+            }
+        }
+
 		public function getPlayerSuggestions(string $game, string $search, int $limit = 30) : ?array
 		{
 			$limit = max(1, $limit);

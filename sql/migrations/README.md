@@ -1,7 +1,7 @@
 # Database upgrades
 
 `sql/install.sql` is **only for an empty database**. Never import it over an
-existing installation. It includes the current schema at **dbversion 89**.
+existing installation. It includes the current schema at **dbversion 90**.
 
 ## Existing installations
 
@@ -23,12 +23,13 @@ no separate SQL import step, migration ledger or shared migration helper.
 | 87 | IP-prefix/player index for connection searches and resolver |
 | 88 | Time-leading event indexes for batched retention deletes |
 | 89 | Convert database/table defaults and text columns to `utf8mb4_general_ci` |
+| 90 | Add `hlstats_Players.avatarUrl` / `avatarUpdated` to cache Steam avatars for 24 hours |
 
 Before upgrading, back up and test on a copy of your database. Pause the daemon,
 awards/resolver jobs and web traffic during the upgrade. ALTER statements can
 rebuild and lock large tables; allow enough disk space and request time. The
 updater needs SELECT, UPDATE and ALTER privileges on the dedicated HLstatsX
-database. Run it once, check the output and confirm `dbversion` is 89, then remove
+database. Run it once, check the output and confirm `dbversion` is 90, then remove
 the deployed `web/updater/` directory as directed by the updater.
 
 These are ordinary, one-time numbered updates. Each records its version after
@@ -36,7 +37,7 @@ its statements succeed. Already-applied indexes, partial updates and earlier
 unreleased db-fixes experiments are not supported starting states. SQL errors
 are not suppressed; DDL may already have committed when an error occurs. Restore
 the backup or reconcile the failure manually, rather than blindly rerunning or
-changing `dbversion`. There is no automatic rollback or recovery update 90.
+changing `dbversion`. There is no automatic rollback or recovery update.
 
 ### Database compatibility
 
