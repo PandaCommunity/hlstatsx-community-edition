@@ -50,14 +50,20 @@ done
 if ((${#missing_packages[@]} > 0)); then
   step "Installing ${#missing_packages[@]} system packages"
 
-  # PHP 8.5 is not in Debian 12, so use the Sury repository when it is not
-  # already configured. Debian's PHP 8.2 is deliberately not installed: the
-  # migration target is 8.5.
-  if ! apt-cache policy php8.5-cli 2>/dev/null | grep -q 'Candidate: [0-9]'; then
-    step "Adding the Sury PHP repository"
-    curl -fsSL https://packages.sury.org/php/apt.gpg | sudo tee /usr/share/keyrings/sury-php.gpg >/dev/null
-    printf 'deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ bookworm main\n' \
-      | sudo tee /etc/apt/sources.list.d/sury-php.list >/dev/null
+  # PHP 8.5 is not in Debian 12 or 13, so use the Sury repository for this
+  # Debian release. Debian's own PHP is deliberately not installed: the
+  # migration target is 8.5. An existing Sury source is rewritten when it names
+  # another release (for example bookworm left over on a trixie orb), because
+  # its packages depend on libraries that release does not ship.
+  debian_codename="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+  sury_list=/etc/apt/sources.list.d/sury-php.list
+  sury_entry="deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ $debian_codename main"
+  if [ -f "$sury_list" ] || ! apt-cache policy php8.5-cli 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+    if [ "$(cat "$sury_list" 2>/dev/null)" != "$sury_entry" ]; then
+      step "Adding the Sury PHP repository for $debian_codename"
+      curl -fsSL https://packages.sury.org/php/apt.gpg | sudo tee /usr/share/keyrings/sury-php.gpg >/dev/null
+      printf '%s\n' "$sury_entry" | sudo tee "$sury_list" >/dev/null
+    fi
   fi
 
   sudo apt-get update -qq
