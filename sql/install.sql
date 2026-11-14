@@ -2,7 +2,7 @@
 
 -- This file is only needed for new installations.
 
-SET @DBVERSION="90";
+SET @DBVERSION="91";
 SET @VERSION="1.7.0";
 
 ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -2286,6 +2286,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Frags` (
   KEY `headshot` (`headshot`),
   KEY `map_killer_headshot_server` (`map`,`killerId`,`headshot`,`serverId`),
   KEY `weapon_killer_headshot_server` (`weapon`,`killerId`,`headshot`,`serverId`),
+  KEY `killer_headshot_time` (`killerId`,`headshot`,`eventTime`,`id`),
   KEY `killerRole` (`killerRole`(8))
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -4173,7 +4174,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_Awards` (
   `count` int(11) unsigned NOT NULL default '0',
   `game` varchar(32) NOT NULL,
   PRIMARY KEY  (`awardTime`,`awardId`,`playerId`,`game`),
-  KEY `player_award_game` (`playerId`,`awardId`,`game`)
+  KEY `player_award_game` (`playerId`,`awardId`,`game`),
+  KEY `award_time_player` (`awardId`,`awardTime`,`playerId`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------

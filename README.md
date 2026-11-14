@@ -65,10 +65,10 @@ change the version value.
    `STEAM_API_KEY` in `config.php` or the web server's environment; without a
    key, player pages show the default avatar.
 5. **Run the Database Updater** at `hlstats.php?mode=updater`. It applies numbered
-   updates **83–90**, adding the indexes, converting text collations and adding
+   updates **83–91**, adding the indexes, converting text collations and adding
    the Steam avatar cache columns. There is
    no separate SQL import or migration-ledger step. Confirm the output succeeds
-   and `hlstats_Options.dbversion` is **90**, then **remove the deployed
+   and `hlstats_Options.dbversion` is **91**, then **remove the deployed
    `web/updater/` directory** before reopening the site.
 6. **Validate and resume.** Check admin login, statistics, search, chat, in-game
    pages, graphs and signatures. Verify awards/ribbons, pruning and the resolver
@@ -93,7 +93,7 @@ historical SQL files in `sql/migrations/` as part of this switch.
 ## Fresh installations
 
 Import `sql/install.sql` **only into an empty, dedicated database**. It includes
-the current schema at **dbversion 90**. Configure the frontend, daemon and
+the current schema at **dbversion 91**. Configure the frontend, daemon and
 game-server log forwarding, supply the required grants, and remove the deployed
 updater directory before normal use.
 

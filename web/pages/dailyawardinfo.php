@@ -130,14 +130,14 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 	$resultCount = $db->query("
 		SELECT
-			awardTime
+			COUNT(*)
 		FROM
 			hlstats_Players_Awards
 		WHERE
-			awardid=$award	
+			awardid=$award
 	");
 
-	$numitems = mysqli_num_rows($resultCount);
+	list($numitems) = $db->fetch_row($resultCount);
 
 ?>
 
