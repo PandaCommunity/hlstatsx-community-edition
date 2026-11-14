@@ -242,26 +242,32 @@ For support and installation notes visit http://www.hlxcommunity.com
 						$table->startitem,
 						$table->numperpage
 				");
-				$resultCount = $db->query
-				("
-					SELECT $join_order
-						COUNT(*)
-					FROM
-						hlstats_PlayerNames
-					INNER JOIN
-						hlstats_Players
-					ON
-						hlstats_Players.playerId = hlstats_PlayerNames.playerId
-					INNER JOIN
-						hlstats_Games
-					ON
-						hlstats_Games.code = hlstats_Players.game
-					WHERE
-						hlstats_Games.hidden = '0'
-						AND hlstats_PlayerNames.name LIKE '%$sr_query%'
-						$andgame
-				");
-				list($numitems) = $db->fetch_row($resultCount);
+				// A short first page already holds every match, so skip the second
+				// full name scan that COUNT(*) would repeat.
+				$numitems = $db->num_rows($result);
+				if ($table->startitem > 0 || $numitems >= $table->numperpage)
+				{
+					$resultCount = $db->query
+					("
+						SELECT $join_order
+							COUNT(*)
+						FROM
+							hlstats_PlayerNames
+						INNER JOIN
+							hlstats_Players
+						ON
+							hlstats_Players.playerId = hlstats_PlayerNames.playerId
+						INNER JOIN
+							hlstats_Games
+						ON
+							hlstats_Games.code = hlstats_Players.game
+						WHERE
+							hlstats_Games.hidden = '0'
+							AND hlstats_PlayerNames.name LIKE '%$sr_query%'
+							$andgame
+					");
+					list($numitems) = $db->fetch_row($resultCount);
+				}
 				$table->draw($result, $numitems, 95);
 			}
 			elseif ($this->type == 'uniqueid')
