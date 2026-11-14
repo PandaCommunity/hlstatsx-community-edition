@@ -158,63 +158,78 @@ For support and installation notes visit http://www.hlxcommunity.com
 	} else {
 		$statusmsg = '<span style="color:green;font-weight:bold;">In good standing</span>';
 	}
-// Required on a few pages, just decided to add it here
-// May get moved in the future
-
-$db->query("
-		SELECT
-			COUNT(hlstats_Events_Frags.killerId)
-		FROM
-			hlstats_Events_Frags
-		WHERE
-			hlstats_Events_Frags.killerId = '$player'
-			AND hlstats_Events_Frags.headshot = 1
-	");
-
-	list($realheadshots) = $db->fetch_row();
-
-    $db->query("
-		SELECT
-			COUNT(hlstats_Events_Frags.killerId)
-		FROM
-			hlstats_Events_Frags
-		WHERE
-			hlstats_Events_Frags.killerId = '$player'
-	");
-
-	list($realkills) = $db->fetch_row();
-
-    $db->query("
-		SELECT
-			COUNT(hlstats_Events_Frags.victimId)
-		FROM
-			hlstats_Events_Frags
-		WHERE
-			hlstats_Events_Frags.victimId = '$player'
-	");
-
-	list($realdeaths) = $db->fetch_row();
-
-    $db->query("
-		SELECT
-			COUNT(hlstats_Events_Teamkills.killerId)
-		FROM
-			hlstats_Events_Teamkills
-		WHERE
-			hlstats_Events_Teamkills.killerId = '$player'
-	");
-
-	list($realteamkills) = $db->fetch_row();
-
 	if (!isset($_GET['killLimit'])) {
 		$killLimit = 5;
 	} else {
 		$killLimit = valid_request($_GET['killLimit'], true);
 	}
 
-	if (isset($_GET['type']) && $_GET['type'] == 'ajax') {
-		$tabs = explode('_', preg_replace('[^a-z]', '', $_GET['tab']));
+	$ajax = isset($_GET['type']) && $_GET['type'] == 'ajax';
 
+	if ($ajax) {
+		$tabs = explode('_', preg_replace('[^a-z]', '', $_GET['tab']));
+	} else {
+		pageHeader
+		(
+			array ($gamename, 'Player Details', $pl_name),
+			array
+			(
+				$gamename=>$g_options['scripturl'] . "?game=$game",
+				'Player Rankings'=>$g_options['scripturl'] . "?mode=players&game=$game",
+				'Player Details'=>""
+			),
+			$pl_name
+		);
+
+		// pageHeader() turns tabs off for visitors without JavaScript. With tabs
+		// on, this page only renders the tab bar and each tab loads over AJAX.
+		$tabs = ($g_options['playerinfo_tabs'] == '1') ? array() :
+			array('general', 'aliases', 'playeractions', 'teams', 'weapons', 'mapperformance', 'servers', 'killstats');
+	}
+
+	// Retained-event totals, computed once and skipped for tabs that don't use
+	// them. Listing the exceptions keeps any tab name a case-insensitive
+	// filesystem resolves (e.g. playerinfo_General.php) on the safe side.
+	$tabKeys = array_map('strtolower', $tabs);
+	if (array_diff($tabKeys, array('', 'aliases', 'playeractions', 'teams'))) {
+		$db->query("
+			SELECT
+				COUNT(*),
+				IFNULL(SUM(hlstats_Events_Frags.headshot = 1), 0)
+			FROM
+				hlstats_Events_Frags
+			WHERE
+				hlstats_Events_Frags.killerId = '$player'
+		");
+
+		list($realkills, $realheadshots) = $db->fetch_row();
+
+		$db->query("
+			SELECT
+				COUNT(hlstats_Events_Frags.victimId)
+			FROM
+				hlstats_Events_Frags
+			WHERE
+				hlstats_Events_Frags.victimId = '$player'
+		");
+
+		list($realdeaths) = $db->fetch_row();
+	}
+
+	if (array_diff($tabKeys, array('', 'aliases', 'playeractions', 'teams', 'weapons', 'mapperformance', 'servers', 'killstats'))) {
+		$db->query("
+			SELECT
+				COUNT(hlstats_Events_Teamkills.killerId)
+			FROM
+				hlstats_Events_Teamkills
+			WHERE
+				hlstats_Events_Teamkills.killerId = '$player'
+		");
+
+		list($realteamkills) = $db->fetch_row();
+	}
+
+	if ($ajax) {
 		foreach ($tabs as $tab) {
 			if (file_exists(PAGE_PATH . "/playerinfo_$tab.php")) {
 				@include(PAGE_PATH . "/playerinfo_$tab.php");
@@ -223,18 +238,6 @@ $db->query("
 
 		exit;
 	}
-
-	pageHeader
-	(
-		array ($gamename, 'Player Details', $pl_name),
-		array
-		(
-			$gamename=>$g_options['scripturl'] . "?game=$game",
-			'Player Rankings'=>$g_options['scripturl'] . "?mode=players&game=$game",
-			'Player Details'=>""
-		),
-		$pl_name
-	);
 ?>
 <div class="block" id="main">
 <?php	

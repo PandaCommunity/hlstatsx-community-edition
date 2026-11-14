@@ -429,17 +429,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 					<td style="width:45%;">Kills per Death:</td>
 					<td style="width:55%;" colspan="2">
 						<?php
+							// Derived from the retained totals in playerinfo.php instead of
+							// rescanning the frags; the database still does the arithmetic.
 							$db->query
 							("
 								SELECT
-									IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = '$player') / IF(SUM(hlstats_Events_Frags.victimId = '$player') = 0, 1, SUM(hlstats_Events_Frags.victimId = '$player')), 2), '-')
-								FROM
-									hlstats_Events_Frags
-								WHERE
-									(
-										hlstats_Events_Frags.killerId = '$player'
-										OR hlstats_Events_Frags.victimId = '$player'
-									)
+									IF($realkills + $realdeaths = 0, '-', ROUND($realkills / IF($realdeaths = 0, 1, $realdeaths), 2))
 							");
 							list($realkpd) = $db->fetch_row();
 							echo $playerdata['kpd'];
@@ -454,11 +449,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 							$db->query
 							("
 								SELECT
-									IFNULL(SUM(hlstats_Events_Frags.headshot=1) / COUNT(*), '-')
-								FROM
-									hlstats_Events_Frags
-								WHERE
-									hlstats_Events_Frags.killerId = '$player'
+									IFNULL($realheadshots / NULLIF($realkills, 0), '-')
 							");
 							list($realhpk) = $db->fetch_row();
 							echo $playerdata['hpk'];
