@@ -65,10 +65,11 @@ For support and installation notes visit http://www.hlxcommunity.com
 							");
 							list($uqid, $coid) = $db->fetch_row();
 
+							// Show only the cached avatar; Steam is never called while the page renders.
 							// Only Normal mode stores Steam IDs; NameTrack stores names that could look like one.
 							$avatar_full = ($playerdata['blockavatar'] || $g_options['Mode'] !== 'Normal')
 								? null
-								: $container->get(\Service\SteamAvatarService::class)->getAvatarUrl((int)$player);
+								: $playerdata['avatarUrl'];
 							$avatar_full = htmlspecialchars($avatar_full ?? IMAGE_PATH . '/unknown.jpg', ENT_QUOTES);
 
 							echo("<img src=\"$avatar_full\" style=\"height:158px;width:158px;\" alt=\"Steam Community Avatar\" />");

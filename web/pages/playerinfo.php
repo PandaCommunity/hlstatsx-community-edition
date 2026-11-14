@@ -92,6 +92,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			hlstats_Players.game,
 			hlstats_Players.hideranking,
 			hlstats_Players.blockavatar,
+			hlstats_Players.avatarUrl,
 			hlstats_Players.skill,
 			hlstats_Players.kills,
 			hlstats_Players.deaths,

@@ -2,7 +2,7 @@
 
 -- This file is only needed for new installations.
 
-SET @DBVERSION="91";
+SET @DBVERSION="92";
 SET @VERSION="1.7.0";
 
 ALTER DATABASE CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -4158,7 +4158,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players` (
   KEY `game` (`game`),
   KEY `kills` (`kills`),
   KEY `hideranking` (`hideranking`),
-  KEY `game_skill_rank` (`game`,`hideranking`,`skill`,`kills`,`deaths`)
+  KEY `game_skill_rank` (`game`,`hideranking`,`skill`,`kills`,`deaths`),
+  KEY `last_event_avatar` (`last_event`,`avatarUpdated`,`playerId`)
 ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -4232,6 +4233,27 @@ CREATE TABLE IF NOT EXISTS `hlstats_PlayerUniqueIds` (
   PRIMARY KEY  (`uniqueId`,`game`),
   KEY `playerId` (`playerId`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `hlstats_SteamAvatarGate`
+--
+
+CREATE TABLE IF NOT EXISTS `hlstats_SteamAvatarGate` (
+  `id` tinyint(3) unsigned NOT NULL,
+  `next_allowed_at` int(11) unsigned NOT NULL default '0',
+  `lease_owner` varchar(32) NOT NULL default '',
+  `lease_until` int(11) unsigned NOT NULL default '0',
+  `last_attempt_at` int(11) unsigned NOT NULL default '0',
+  `last_success_at` int(11) unsigned NOT NULL default '0',
+  `last_status` varchar(64) NOT NULL default '',
+  `failures` int(10) unsigned NOT NULL default '0',
+  `calls` int(10) unsigned NOT NULL default '0',
+  PRIMARY KEY  (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT IGNORE INTO `hlstats_SteamAvatarGate` (`id`) VALUES (1);
 
 -- --------------------------------------------------------
 

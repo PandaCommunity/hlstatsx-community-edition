@@ -1,7 +1,7 @@
 # Database upgrades
 
 `sql/install.sql` is **only for an empty database**. Never import it over an
-existing installation. It includes the current schema at **dbversion 91**.
+existing installation. It includes the current schema at **dbversion 92**.
 
 ## Existing installations
 
@@ -23,14 +23,15 @@ no separate SQL import step, migration ledger or shared migration helper.
 | 87 | IP-prefix/player index for connection searches and resolver |
 | 88 | Time-leading event indexes for batched retention deletes |
 | 89 | Convert database/table defaults and text columns to `utf8mb4_general_ci` |
-| 90 | Add `hlstats_Players.avatarUrl` / `avatarUpdated` to cache Steam avatars for 24 hours |
+| 90 | Add `hlstats_Players.avatarUrl` / `avatarUpdated` to cache Steam avatars |
 | 91 | Killer/headshot/time frag index for event history and profile totals; award-leading daily award index |
+| 92 | Add the `hlstats_SteamAvatarGate` row and the `hlstats_Players` `(last_event, avatarUpdated, playerId)` index for background avatar refresh |
 
 Before upgrading, back up and test on a copy of your database. Pause the daemon,
 awards/resolver jobs and web traffic during the upgrade. ALTER statements can
 rebuild and lock large tables; allow enough disk space and request time. The
-updater needs SELECT, UPDATE and ALTER privileges on the dedicated HLstatsX
-database. Run it once, check the output and confirm `dbversion` is 91, then remove
+updater needs SELECT, INSERT, UPDATE, CREATE and ALTER privileges on the dedicated HLstatsX
+database. Run it once, check the output and confirm `dbversion` is 92, then remove
 the deployed `web/updater/` directory as directed by the updater.
 
 These are ordinary, one-time numbered updates. Each records its version after
@@ -233,6 +234,47 @@ UPDATE hlstats_Options SET value = '90' WHERE keyname = 'dbversion';
 On InnoDB, dropping a secondary index is an in-place metadata change and is quick
 (under 0.5 s for both locally); it takes the same short metadata locks. On MyISAM it
 copies the table again.
+
+### Steam avatar refresh (update 92)
+
+Player pages only show the cached `avatarUrl`. After a page is sent
+(`fastcgi_finish_request`, so PHP-FPM only), one request per
+`STEAM_AVATAR_REFRESH_INTERVAL` across all web servers wins an atomic UPDATE on
+the single `hlstats_SteamAvatarGate` row (InnoDB) and makes one
+`GetPlayerSummaries` call for up to 100 Steam accounts whose cached avatar is
+due: older than a day for players active within `STEAM_AVATAR_DAILY_DAYS`, older
+than a week for players active within `STEAM_AVATAR_WEEKLY_DAYS` (20 slots
+reserved for these), most recently active first within each tier. Refresh runs
+only in Normal mode. A failed call backs off
+from 15 minutes to 6 hours, or follows `Retry-After` (at most a day); 401/403
+pause refreshes for a day. The gate row records the last attempt, success,
+status, consecutive failures and total calls.
+
+The new `hlstats_Players` key rebuilds the table and blocks writes to it while it
+runs (MyISAM cannot add it with `LOCK=NONE`). On a synthetic MariaDB 11.8 copy
+with 3.3 million players it took 34 s and grew the index file from 196 to 255 MiB.
+Each batch walks two index ranges (players active in the last 7 days and 7–28
+days ago) backwards and stops after 300 due players, instead of scanning the table. When
+nothing is due it reads the whole range: about 33,000 and 66,000 index entries on
+that copy, 55 ms warm. A daemon `--stdin` import sets every player's `last_event`
+to the same time; batches then read the players refreshed or skipped in the last
+day plus a few hundred entries (12,588 right after the import on that copy), not
+the whole table. The daemon's per-player `last_event` updates must maintain the key:
+20,000 random player updates took about 5–8% longer warm.
+
+**Rollback.** Code from before update 92 runs unchanged with the gate table and
+key in place, so rolling back the code needs no schema change. To remove the
+schema too (for example after a partial run: if the ALTER succeeded but a later
+statement failed, a rerun stops on the duplicate key name), keep writers paused
+and run what exists of:
+
+```sql
+DROP TABLE hlstats_SteamAvatarGate;
+ALTER TABLE hlstats_Players DROP INDEX last_event_avatar;
+UPDATE hlstats_Options SET value = '91' WHERE keyname = 'dbversion';
+```
+
+On MyISAM, dropping the key copies `hlstats_Players` again and blocks writes while it runs.
 
 ## Adding a migration
 

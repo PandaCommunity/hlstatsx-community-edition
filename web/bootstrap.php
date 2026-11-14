@@ -9,6 +9,7 @@
     use Repository\OptionsRepository;
     use Repository\GameRepository;
     use Repository\PlayerRepository;
+    use Repository\SteamAvatarGateRepository;
     use Service\OptionService;
     use Service\SteamAvatarService;
     use Cache\CacheCleaner;
@@ -82,8 +83,12 @@
     $container->set(SteamAvatarService::class, function($c) {
         return new SteamAvatarService(
             $c->get(PlayerRepository::class),
+            new SteamAvatarGateRepository($c->get('pdo')),
             $c->get('logger'),
-            STEAM_API_KEY
+            STEAM_API_KEY,
+            STEAM_AVATAR_REFRESH_INTERVAL,
+            STEAM_AVATAR_DAILY_DAYS,
+            STEAM_AVATAR_WEEKLY_DAYS
         );
     });
 

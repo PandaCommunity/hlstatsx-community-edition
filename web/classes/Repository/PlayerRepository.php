@@ -56,61 +56,104 @@
         }
 
         /**
-         * Returns the player's first uniqueId with the cached Steam avatar URL
-         * (null when none) and the Unix time it was last fetched (0 = never).
+         * Returns up to $limit players whose last game event is within the last
+         * $activeWithin seconds but more than $activeAfter seconds ago (0: any
+         * time since, including future timestamps), and whose avatar was last
+         * refreshed more than $refreshAfter seconds ago, most recently active
+         * first, as rows of playerId, blockavatar and uniqueId (one row per
+         * uniqueId; null when the player has none). Walks the (last_event,
+         * avatarUpdated, playerId) index backwards and stops after $limit due
+         * players, so it reads at most that window's index entries.
+         * Throws PDOException.
          */
-        public function getSteamAvatarCache(int $player) : ?array
+        public function getSteamAvatarCandidates(int $activeWithin, int $activeAfter, int $refreshAfter, int $limit) : array
         {
             $sql = "
                 SELECT
-                    hlstats_PlayerUniqueIds.uniqueId,
-                    hlstats_Players.avatarUrl,
-                    hlstats_Players.avatarUpdated
+                    due.playerId,
+                    hlstats_Players.blockavatar,
+                    hlstats_PlayerUniqueIds.uniqueId
                 FROM
+                    (
+                        SELECT
+                            playerId,
+                            last_event
+                        FROM
+                            hlstats_Players
+                        WHERE
+                            last_event >= UNIX_TIMESTAMP() - :activeWithin
+                            " . ($activeAfter > 0 ? 'AND last_event < UNIX_TIMESTAMP() - :activeAfter' : '') . "
+                            AND avatarUpdated < UNIX_TIMESTAMP() - :refreshAfter
+                        ORDER BY
+                            last_event DESC
+                        LIMIT :limit
+                    ) AS due
+                INNER JOIN
                     hlstats_Players
+                ON
+                    hlstats_Players.playerId = due.playerId
                 LEFT JOIN
                     hlstats_PlayerUniqueIds
                 ON
-                    hlstats_PlayerUniqueIds.playerId = hlstats_Players.playerId
-                WHERE
-                    hlstats_Players.playerId = :player
-                LIMIT 1
+                    hlstats_PlayerUniqueIds.playerId = due.playerId
+                ORDER BY
+                    due.last_event DESC,
+                    due.playerId
             ";
 
-            try {
-                $stmt = $this->pdo->prepare($sql);
-                $stmt->bindValue(':player', $player, PDO::PARAM_INT);
-                $stmt->execute();
-
-                $row = $stmt->fetch(PDO::FETCH_ASSOC);
-                return $row === false ? null : $row;
-            } catch (PDOException $e) {
-                $this->logger->error('Failed to get Steam avatar cache: ' . $e->getMessage());
-                return null;
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindValue(':activeWithin', $activeWithin, PDO::PARAM_INT);
+            if ($activeAfter > 0) {
+                $stmt->bindValue(':activeAfter', $activeAfter, PDO::PARAM_INT);
             }
+            $stmt->bindValue(':refreshAfter', $refreshAfter, PDO::PARAM_INT);
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        public function saveSteamAvatarCache(int $player, ?string $avatarUrl, int $updated) : void
+        /**
+         * Records a Steam lookup for every player with this uniqueId, in every
+         * game. False keeps each player's cached URL. Throws PDOException.
+         */
+        public function saveSteamAvatar(string $uniqueId, string|null|false $avatarUrl) : void
         {
             $sql = "
                 UPDATE
                     hlstats_Players
+                INNER JOIN
+                    hlstats_PlayerUniqueIds
+                ON
+                    hlstats_PlayerUniqueIds.playerId = hlstats_Players.playerId
                 SET
-                    avatarUrl = :avatarUrl,
-                    avatarUpdated = :updated
+                    hlstats_Players.avatarUrl = IF(:keep, hlstats_Players.avatarUrl, :avatarUrl),
+                    hlstats_Players.avatarUpdated = UNIX_TIMESTAMP()
                 WHERE
-                    playerId = :player
+                    hlstats_PlayerUniqueIds.uniqueId = :uniqueId
             ";
 
-            try {
-                $stmt = $this->pdo->prepare($sql);
-                $stmt->bindValue(':avatarUrl', $avatarUrl, $avatarUrl === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-                $stmt->bindValue(':updated', $updated, PDO::PARAM_INT);
-                $stmt->bindValue(':player', $player, PDO::PARAM_INT);
-                $stmt->execute();
-            } catch (PDOException $e) {
-                $this->logger->error('Failed to save Steam avatar cache: ' . $e->getMessage());
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindValue(':keep', $avatarUrl === false ? 1 : 0, PDO::PARAM_INT);
+            $stmt->bindValue(':avatarUrl', $avatarUrl ?: null, is_string($avatarUrl) ? PDO::PARAM_STR : PDO::PARAM_NULL);
+            $stmt->bindValue(':uniqueId', $uniqueId, PDO::PARAM_STR);
+            $stmt->execute();
+        }
+
+        /**
+         * Marks players that cannot be looked up (bots, invalid IDs, blocked
+         * avatars) as checked now, so they leave the refresh queue for a
+         * refresh period. Throws PDOException.
+         */
+        public function markSteamAvatarsChecked(array $playerIds) : void
+        {
+            if ($playerIds === []) {
+                return;
             }
+
+            $placeholders = implode(',', array_fill(0, count($playerIds), '?'));
+            $stmt = $this->pdo->prepare("UPDATE hlstats_Players SET avatarUpdated = UNIX_TIMESTAMP() WHERE playerId IN ($placeholders)");
+            $stmt->execute(array_map('intval', array_values($playerIds)));
         }
 
 		public function getPlayerSuggestions(string $game, string $search, int $limit = 30) : ?array
