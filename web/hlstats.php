@@ -256,4 +256,11 @@ else
 	pageFooter();
 }
 
+// The page is complete: send it, then let at most one request per interval
+// refresh a batch of cached Steam avatars without making the visitor wait.
+if ($mode !== 'updater' && $g_options['Mode'] === 'Normal')
+{
+	$container->get(\Service\SteamAvatarService::class)->refreshAfterResponse();
+}
+
 ?>
