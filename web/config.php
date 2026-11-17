@@ -76,12 +76,30 @@ define("DB_COLLATE", 'utf8mb4_general_ci');
 define("DB_PCONNECT", 0);
 
 // STEAM_API_KEY - Steam Web API key (https://steamcommunity.com/dev/apikey)
-//                 used to show players' Steam avatars, cached for 24 hours per
-//                 player. Set it here or with the STEAM_API_KEY environment
-//                 variable (for example `env[STEAM_API_KEY] = ...` in the
-//                 PHP-FPM pool, `SetEnv` in Apache or `fastcgi_param` in nginx).
-//                 Leave empty to disable lookups and show the default avatar.
+//                 used to refresh players' cached Steam avatars. Set it here or
+//                 with the STEAM_API_KEY environment variable (for example
+//                 `env[STEAM_API_KEY] = ...` in the PHP-FPM pool or
+//                 `fastcgi_param` in nginx). Pages only show cached avatars and
+//                 never wait for Steam: after a page has been sent, at most one
+//                 request per STEAM_AVATAR_REFRESH_INTERVAL fetches one batch of
+//                 up to 100 accounts. This needs PHP-FPM (fastcgi_finish_request).
+//                 Leave empty to stop all lookups; cached avatars stay visible.
 define('STEAM_API_KEY', getenv('STEAM_API_KEY') ?: '');
+
+// STEAM_AVATAR_REFRESH_INTERVAL - Minimum seconds between avatar batches, shared
+//                 by all web servers using this database (at least 60; up to 10%
+//                 random jitter is added). Refresh runs only in Normal mode. A
+//                 failed batch pauses refreshes for longer: Steam's Retry-After
+//                 when given (at most a day), otherwise 15 minutes doubling up to
+//                 6 hours; a rejected key (HTTP 401/403) pauses them for a day.
+define('STEAM_AVATAR_REFRESH_INTERVAL', 300);
+
+// STEAM_AVATAR_DAILY_DAYS / STEAM_AVATAR_WEEKLY_DAYS - Players active within the
+//                 first number of days get their avatar refreshed daily, then
+//                 weekly until the second number. Older players keep their
+//                 cached avatar and are not looked up.
+define('STEAM_AVATAR_DAILY_DAYS', 7);
+define('STEAM_AVATAR_WEEKLY_DAYS', 28);
 
 // INCLUDE_PATH - Filesystem path to the includes directory, relative to hlstats.php. This must be specified
 //		as a relative path.
